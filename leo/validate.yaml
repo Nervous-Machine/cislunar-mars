@@ -93,11 +93,31 @@ endpoints:
 # Mirrors learn-from-grace-fo.js. η(Z) provides adaptive learning rate.
 
 learning:
-  rate_function: eta_z
-  # SPEC NOTE: This block is the source of truth — it mirrors the shipping
-  # learn-from-grace-fo.js loop. cislunar/validate.yaml's eta_max_by_bucket
-  # should be reconciled against the actual computeLearningRate behavior used
-  # here before either file is shared externally.
+  # ARCHITECTURAL COMMITMENT:
+  #
+  # The learning rate is a property of the EDGE being updated, not of the
+  # sensor providing the measurement. Each edge carries its own certainty Z
+  # and at each cycle computes η(Z, residual) — a sigmoid in current Z and
+  # observed prediction error. η rises when Z is low or residuals are large
+  # and falls as Z climbs and residuals shrink. The rate is dynamic and
+  # per-cycle.
+  #
+  # The source/bucket sets the PRIOR: starting Z (in prior.yaml) and the
+  # bounds of the sigmoid (eta_floor, eta_ceiling). It does not set the rate.
+  # Static per-source rates would collapse this into a Kalman-shaped
+  # weighted-average filter and lose the UQ behavior.
+  #
+  # This block is the SOURCE OF TRUTH — it mirrors the shipping
+  # learn-from-grace-fo.js / dissipative-learning.js loop. cislunar/validate.yaml
+  # references this file's behavior; reconcile that file's per-bucket bounds
+  # against the actual computeLearningRate path before external distribution.
+  rate_function: eta_z_residual
+  rate_owner: per_edge
+  rate_dynamic: true
+  formula: "η(Z, ε) — computed per edge per cycle from current Z and prediction error ε"
+  global_sigmoid_bounds:
+    eta_floor: 0.10
+    eta_ceiling: 0.90
   initial_certainty: 0.30
   convergence_threshold: 0.85
   curiosity_threshold: 0.70

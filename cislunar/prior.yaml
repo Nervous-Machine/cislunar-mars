@@ -34,17 +34,26 @@ regions:
 
 # --- SOURCES ---
 # Eight buckets matching the access/credibility landscape for cislunar weather.
-# Starting Z and η are per-bucket conventions; per-source overrides allowed.
+#
+# Each bucket sets the PRIOR for the edges its measurements touch:
+#   - starting_certainty: Z_0 for edges that this bucket informs
+#   - eta_bounds_class:   the bucket-level band the per-edge dynamic rate
+#                         η(Z, residual) is allowed to move within (defined
+#                         numerically in ../validate.yaml)
+#
+# The learning rate itself is a PER-EDGE PER-CYCLE quantity — not a property
+# of the source. The source determines bounds; the edge owns the rate. See
+# the "ARCHITECTURAL COMMITMENT" block in validate.yaml.
 
 sources:
 
   # ============================================================
-  # 1. OPERATIONAL INSTRUMENTS  (Z_start = 0.75–0.85, η low)
+  # 1. OPERATIONAL INSTRUMENTS  (Z_start = 0.75–0.85, eta band tight + high)
   # Real-time, validated, wired feeds.
   # ============================================================
   operational_instruments:
     starting_certainty: 0.80
-    learning_rate_class: low      # η = ηmax * (1 - σ(k*(Z - 0.5)))
+    eta_bounds_class: tight       # narrow band high in Z — trust the prior
     confidence: high
     description: "Real-time operational feeds for nowcast and short-horizon prediction"
     providers:
@@ -116,7 +125,7 @@ sources:
   # ============================================================
   research_historical:
     starting_certainty: 0.65
-    learning_rate_class: low-medium
+    eta_bounds_class: tight       # archive data is well-characterized
     confidence: medium-high
     description: "Calibration corpus — magnetosphere and inner-heliosphere physics"
     providers:
@@ -155,7 +164,7 @@ sources:
   # ============================================================
   planned_instruments:
     starting_certainty: 0.30
-    learning_rate_class: medium
+    eta_bounds_class: wide        # low prior trust — let η climb on disagreement
     confidence: low
     description: "Missions in development — schema present, endpoints TBD"
     providers:
@@ -208,7 +217,7 @@ sources:
   # ============================================================
   commercial_partnerships:
     starting_certainty: 0.45
-    learning_rate_class: medium
+    eta_bounds_class: medium      # moderate prior — tighten as partnerships mature
     confidence: low-medium
     description: "Commercial sensor networks and constellations — category is real, provider may be TBD"
     providers:
@@ -260,7 +269,7 @@ sources:
   # ============================================================
   third_party_research:
     starting_certainty: 0.30
-    learning_rate_class: high
+    eta_bounds_class: wide        # models are hypotheses — η climbs hard on residuals
     confidence: low
     description: "Model outputs and university feeds — treated as priors to update against measurement"
     discipline_note: "Model outputs are NOT ground truth. They carry larger error envelopes than operational sensors. Learning treats them as hypotheses, not validators."
@@ -304,7 +313,7 @@ sources:
   # ============================================================
   mission_telemetry:
     starting_certainty: 0.50
-    learning_rate_class: medium
+    eta_bounds_class: medium      # vehicle data is direct, but ICD-specific
     confidence: contractually_gated
     description: "Vehicle-specific telemetry — schema-shaped, content gated by mission ICDs and NDAs"
     sme_contact_slot: "CLPS provider SME — engagement slot"
@@ -350,7 +359,7 @@ sources:
   # ============================================================
   sme_knowledge:
     starting_certainty: 0.35
-    learning_rate_class: high
+    eta_bounds_class: wide        # expert prior — update freely against measurement
     confidence: low-medium
     description: "Expert-provided priors — encoded as documents, extracted to causal hypotheses"
     sme_contact_slot: "Tzu-Wei Fang — WAM-IPE; commercial-spacecraft forecasting"
@@ -378,7 +387,7 @@ sources:
   # ============================================================
   restricted:
     starting_certainty: null
-    learning_rate_class: null
+    eta_bounds_class: null        # no learning until content is bound
     confidence: gated
     description: "ITAR / classified / proprietary — schema shape declared, content blank pending access"
     access_landscape_acknowledgement: true

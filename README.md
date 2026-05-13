@@ -25,20 +25,26 @@ space-weather drivers from MongoDB; η(Z) dissipative learning).
 
 ## Source buckets (cislunar)
 
-Each bucket sets a starting certainty Z and a learning-rate class η. The
-intent is that operational data anchors the model, research data calibrates
-it, and lower-Z buckets (third-party models, SME priors) are learned against
-ground truth.
+Each bucket sets a **prior** for the edges its measurements touch:
 
-| Bucket | Z_start | η class | Role |
+- **starting_certainty (Z_0)** — initial confidence in those edges
+- **eta_bounds_class** — the band the per-edge dynamic rate η(Z, residual)
+  is allowed to move within (`tight` | `medium` | `wide` | `null`)
+
+The bucket does NOT set the rate. The rate is a per-edge per-cycle quantity
+computed from current Z and observed prediction error. See the
+[architectural commitment](#learning-rate-is-a-property-of-the-edge) section
+below.
+
+| Bucket | Z_start | η bounds | Role |
 |---|---|---|---|
-| operational_instruments | 0.80 | low | Real-time wired feeds (SWPC, GOES, SDO, ACE, DSCOVR) |
-| research_historical | 0.65 | low-medium | Van Allen Probes, MMS, ARTEMIS, Arase — calibration only |
-| planned_instruments | 0.30 | medium | GDC, IMAP, Lunar Trailblazer, Artemis support — schema-ready |
+| operational_instruments | 0.80 | tight | Real-time wired feeds (SWPC, GOES, SDO, ACE, DSCOVR) |
+| research_historical | 0.65 | tight | Van Allen Probes, MMS, ARTEMIS, Arase — calibration only |
+| planned_instruments | 0.30 | wide | GDC, IMAP, Lunar Trailblazer, Artemis support — schema-ready |
 | commercial_partnerships | 0.45 | medium | Spire, HawkEye 360, Planet, GeoOptics, Muon Space, BlackSky |
-| third_party_research | 0.30 | high | CCMC, NAIRAS, IRENE/AE9-AP9, university feeds |
+| third_party_research | 0.30 | wide | CCMC, NAIRAS, IRENE/AE9-AP9, university feeds |
 | mission_telemetry | 0.50 | medium | CLPS (IM-1/2/3), Artemis, commercial lunar relay |
-| sme_knowledge | 0.35 | high | WAM-IPE prior; expert document → LLM-extracted hypotheses |
+| sme_knowledge | 0.35 | wide | WAM-IPE prior; expert document → LLM-extracted hypotheses |
 | restricted | n/a | n/a | ITAR / classified / proprietary — schema-shaped, content-blank |
 
 SME engagement slots are labeled by archetype, with candidate individuals
@@ -95,12 +101,31 @@ Trailblazer mission anomaly, IMAP launch date confirmation) the YAML notes
 `VERIFY ... before sending` rather than presenting a soft hedge. Confirm
 against current mission press releases before the file leaves the repo.
 
-**eta_max ceilings.** `cislunar/validate.yaml` carries directional per-bucket
-eta_max values flagged `RECONCILE` — they MUST be matched against the
-shipping `computeLearningRate` behavior in
-`~/space-waze/lib/dissipative-learning.js` and the published GRACE-FO /
-quantum benchmark runs before external distribution. `leo/validate.yaml` is
-the source of truth (it mirrors the shipping loop).
+### Learning rate is a property of the edge
+
+The source determines the **prior** — both the starting Z and the η_max
+ceiling for that bucket. The actual learning rate at any moment is
+**η(Z, residual)**, a sigmoid function bounded between 0.1 and 0.9,
+computed per-cycle from the current certainty and the observed prediction
+error.
+
+The sensor doesn't have a learning rate. The edge being updated has a
+learning rate, and that rate is dynamic. Bucket-level configuration sets
+the bounds within which the dynamic rate operates.
+
+That is the architectural commitment, and it's what makes the framework
+a UQ system rather than a weighted-average filter. Static per-source
+rates would be a Kalman-shaped move and would collapse the per-edge
+uncertainty quantification that distinguishes the framework from one-loss
+ML and from ensemble-spread approaches.
+
+**Reconcile before sending.** `cislunar/validate.yaml`'s
+`eta_bounds_by_bucket` carries per-bucket floor/ceiling pairs flagged
+`RECONCILE` — these are the sigmoid bounds, not rates, and they MUST be
+matched against the shipping `computeLearningRate` behavior in
+`~/space-waze/lib/dissipative-learning.js` and the published GRACE-FO
+benchmark runs before external distribution. `leo/validate.yaml` is the
+source of truth — it mirrors the shipping loop directly.
 
 **SME slot phrasing.** Slots are labeled by archetype, not by individual,
 with candidate individuals named only in `notes`. The working pod still

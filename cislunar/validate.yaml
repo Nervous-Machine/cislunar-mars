@@ -316,23 +316,51 @@ endpoints:
 # --- LEARNING PARAMETERS ---
 
 learning:
-  rate_function: eta_z              # η(Z) = ηmax * (1 - σ(k*(Z - Z_mid)))
-  # SPEC NOTE: eta_max values below are the per-bucket CEILING of the η(Z)
-  # curve. They are the spec; they MUST match the values used in the shipping
-  # learning loop (dissipative-learning.js computeLearningRate). Before sending
-  # this file outside the repo, reconcile these against the actual code path
-  # and the published quantum / GRACE-FO benchmark runs. The intent encoded
-  # here is directional (operational < research < commercial < third-party-model
-  # < SME), and the absolute magnitudes are placeholders until reconciled.
-  eta_max_by_bucket:
-    operational_instruments: 0.05   # RECONCILE against shipping loop
-    research_historical: 0.05       # RECONCILE
-    planned_instruments: 0.20       # RECONCILE
-    commercial_partnerships: 0.15   # RECONCILE
-    third_party_research: 0.30      # RECONCILE
-    mission_telemetry: 0.15         # RECONCILE
-    sme_knowledge: 0.30             # RECONCILE
-    restricted: 0.0
+  # ARCHITECTURAL COMMITMENT (read this before reading the numbers below):
+  #
+  # Each edge in the causal graph carries its own certainty Z and its own
+  # dynamic learning rate η(Z, residual). η is computed PER CYCLE from the
+  # edge's current certainty and the observed prediction error — it is not
+  # a property of the sensor, the bucket, or the provider. The sensor
+  # contributes a measurement; the edge being updated owns the rate.
+  #
+  # What the source/bucket determines is the PRIOR for the edges it touches:
+  #   1. starting_certainty (Z_0) — set in prior.yaml per bucket
+  #   2. the bounds of the η(Z, residual) sigmoid — set here per bucket
+  #
+  # The sigmoid is bounded between eta_floor and eta_ceiling. Within those
+  # bounds, η rises when Z is low or residuals are large (learn fast) and
+  # falls when Z is high and residuals are small (resist noise). The bounds
+  # are bucket-level configuration; the rate inside the bounds is per-edge,
+  # per-cycle, and dynamic.
+  #
+  # This is the architectural commitment that distinguishes the framework
+  # from a Kalman-shaped weighted-average filter. Static per-source rates
+  # would collapse it back into one. Do not let downstream reviewers (or
+  # later edits to this file) compress the dynamic rate into a constant.
+  rate_function: eta_z_residual
+  formula: "η(Z, ε) ∈ [eta_floor, eta_ceiling]; rises with |ε| and with (1 - Z); falls with Z"
+  global_sigmoid_bounds:
+    eta_floor: 0.10
+    eta_ceiling: 0.90
+  # Per-bucket bounds INSIDE the global sigmoid. These narrow the band the
+  # dynamic rate is allowed to move within, based on prior trust in the
+  # source. Operational sources get a tight band high in Z; third-party
+  # model outputs get a wide band that allows η to climb when the model
+  # disagrees with measurement. RECONCILE against the shipping
+  # computeLearningRate path in ~/space-waze/lib/dissipative-learning.js
+  # before external distribution — the magnitudes below are directional
+  # placeholders; the structure (per-bucket bounds, not per-bucket rates)
+  # is the spec.
+  eta_bounds_by_bucket:
+    operational_instruments:   { floor: 0.10, ceiling: 0.30 }   # RECONCILE
+    research_historical:       { floor: 0.10, ceiling: 0.30 }   # RECONCILE
+    planned_instruments:       { floor: 0.15, ceiling: 0.60 }   # RECONCILE
+    commercial_partnerships:   { floor: 0.15, ceiling: 0.50 }   # RECONCILE
+    third_party_research:      { floor: 0.20, ceiling: 0.80 }   # RECONCILE
+    mission_telemetry:         { floor: 0.15, ceiling: 0.50 }   # RECONCILE
+    sme_knowledge:             { floor: 0.20, ceiling: 0.80 }   # RECONCILE
+    restricted:                { floor: 0.0,  ceiling: 0.0  }
   convergence_threshold: 0.85
   curiosity_threshold: 0.70
   min_observations: 20
