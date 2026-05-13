@@ -1,7 +1,30 @@
-# nm validate config — cislunar, schema v0.1
+# nm validate config — cislunar
 # Defines HOW to learn: endpoints, learning parameters, validation steps,
 # success criteria. Endpoints are per-source-bucket and inherit starting
 # certainty + learning-rate class from prior.yaml.
+#
+# Reference integrity: every endpoint's `source:` field must resolve to a
+# providers[].id in cislunar/prior.yaml. Every endpoint's `bucket:` field
+# must resolve to a top-level key under sources: in cislunar/prior.yaml.
+# No external validator enforces this yet — divergence will silently break
+# the learning loop. Audit cross-file references when either file changes.
+#
+# Cadence convention: ISO 8601 durations (PT60S, PT5M, PT1H, P1D) for time
+# intervals. Reserved literals for non-time cadences:
+#   static          — does not change in the operational window
+#   event_driven    — updates only when an upstream event fires
+#   archive_pull    — pulled from an archive on demand, not streamed
+#   continuous      — sub-second / streaming, no fixed cadence
+
+version: "0.1"
+schema: nm-validate
+provenance:
+  added: "2026-05-13"
+  added_by: heidi
+  evidence:
+    - swwx_2026_lunar_panel
+    - nasa_sbir_spwx_1_s26a_subtopic
+    - space_atlas_grace_fo_convergence_benchmark
 
 domain: space-weather
 region_set: cislunar
@@ -26,7 +49,7 @@ endpoints:
     source: noaa_swpc
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
-    cadence: 60
+    cadence: PT1M
     format:
       fields: [timestamp, kp, dst]
     maps_to: [geomagnetic_storm, dst_index]
@@ -37,7 +60,7 @@ endpoints:
     source: dscovr
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
-    cadence: 60
+    cadence: PT1M
     format:
       fields: [timestamp, density, speed, temperature]
     maps_to: [solar_wind_dynamic_pressure, solar_wind_speed]
@@ -48,7 +71,7 @@ endpoints:
     source: dscovr
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"
-    cadence: 60
+    cadence: PT1M
     format:
       fields: [timestamp, bx_gsm, by_gsm, bz_gsm, bt]
     maps_to: [imf_bz_southward]
@@ -59,7 +82,7 @@ endpoints:
     source: goes_r_series
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json"
-    cadence: 60
+    cadence: PT1M
     format:
       fields: [time_tag, flux, energy]
     maps_to: [solar_xray_flux]
@@ -70,7 +93,7 @@ endpoints:
     source: goes_r_series
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
-    cadence: 300
+    cadence: PT5M
     format:
       fields: [time_tag, energy, flux]
     maps_to: [solar_proton_event, cislunar_dose_rate]
@@ -82,7 +105,7 @@ endpoints:
     source: sdo
     protocol: http
     endpoint: "https://lasp.colorado.edu/eve/data_access/"
-    cadence: 60
+    cadence: PT1M
     format:
       fields: [timestamp, irradiance_bands]
     maps_to: [solar_xray_flux, thermosphere_density_at_leo]
@@ -93,7 +116,7 @@ endpoints:
     source: ace
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/json/ace/swepam/ace_swepam_1h.json"
-    cadence: 3600
+    cadence: PT1H
     format:
       fields: [time_tag, dsflag, dens, speed, temperature]
     maps_to: [solar_wind_speed]
@@ -107,33 +130,39 @@ endpoints:
     source: van_allen_probes
     protocol: file
     endpoint: "https://rbsp-ect.newmexicoconsortium.org/data_pub/"
+    endpoint_kind: archive_root
     cadence: archive_pull
     format:
       fields: [timestamp, L_shell, mlt, electron_flux_relativistic]
     maps_to: [radiation_belt_enhancement]
     role: prediction_baseline
     use_phase: prior_calibration_only
+    notes: "Archive root, not a direct API. Integration requires file-selection logic against the directory tree."
 
   - name: artemis_lunar_solar_wind
     bucket: research_historical
     source: artemis
     protocol: file
     endpoint: "https://artemis.ssl.berkeley.edu/data/"
+    endpoint_kind: archive_root
     cadence: archive_pull
     format:
       fields: [timestamp, position_lunar, plasma_density, b_vector]
     maps_to: [lunar_wake_crossing, solar_wind_at_lunar_distance]
     role: prediction_baseline
     use_phase: prior_calibration_only
+    notes: "Berkeley URL is an archive directory tree (CDF/level-2 products), not a direct fetch API. Integration requires per-day file selection and CDF parsing logic."
 
   - name: mms_reconnection_archive
     bucket: research_historical
     source: mms
     protocol: file
+    endpoint_kind: archive_root
     cadence: archive_pull
     maps_to: [magnetopause_standoff]
     role: prediction_baseline
     use_phase: prior_calibration_only
+    notes: "MMS science data center serves a directory tree; same archive-root caveat as ARTEMIS."
 
   # ===== PLANNED — schema slots, become active at launch =====
 
@@ -203,20 +232,21 @@ endpoints:
     source: ccmc
     protocol: http
     endpoint: "https://iswa.gsfc.nasa.gov/iswa_data_tree/model/heliosphere/wsa_enlil/"
-    cadence: 6h
+    endpoint_kind: archive_root
+    cadence: PT6H
     format:
       fields: [timestamp, sw_speed_predicted, sw_density_predicted, cme_arrival_predicted]
     maps_to: [cme_arrival, solar_wind_speed]
     role: prediction_baseline
     validation_discipline: model_output
-    notes: "Model output, not measurement. Error = |ENLIL_prediction - DSCOVR_actual|"
+    notes: "Model output, not measurement. Error = |ENLIL_prediction - DSCOVR_actual|. ISWA serves a tree, not an API — file-selection required."
 
   - name: nairas_dose_rate
     bucket: third_party_research
     source: nairas
     protocol: http
     endpoint: "https://sol.spacenvironment.net/nairas/"
-    cadence: 3600
+    cadence: PT1H
     format:
       fields: [timestamp, altitude, latitude, longitude, dose_rate]
     maps_to: [cislunar_dose_rate]
@@ -246,7 +276,7 @@ endpoints:
     maps_to: [cislunar_dose_rate, vehicle_charging_environment]
     role: primary_error_signal
     status: ICD_pending
-    sme_contact: "Don Kuettel (Astrobotic) — engagement slot"
+    sme_contact: "CLPS provider SME — engagement slot (candidate: Don Kuettel, Intuitive Machines)"
 
   - name: artemis_crew_dosimetry
     bucket: mission_telemetry
@@ -287,14 +317,21 @@ endpoints:
 
 learning:
   rate_function: eta_z              # η(Z) = ηmax * (1 - σ(k*(Z - Z_mid)))
+  # SPEC NOTE: eta_max values below are the per-bucket CEILING of the η(Z)
+  # curve. They are the spec; they MUST match the values used in the shipping
+  # learning loop (dissipative-learning.js computeLearningRate). Before sending
+  # this file outside the repo, reconcile these against the actual code path
+  # and the published quantum / GRACE-FO benchmark runs. The intent encoded
+  # here is directional (operational < research < commercial < third-party-model
+  # < SME), and the absolute magnitudes are placeholders until reconciled.
   eta_max_by_bucket:
-    operational_instruments: 0.05
-    research_historical: 0.05
-    planned_instruments: 0.20
-    commercial_partnerships: 0.15
-    third_party_research: 0.30
-    mission_telemetry: 0.15
-    sme_knowledge: 0.30
+    operational_instruments: 0.05   # RECONCILE against shipping loop
+    research_historical: 0.05       # RECONCILE
+    planned_instruments: 0.20       # RECONCILE
+    commercial_partnerships: 0.15   # RECONCILE
+    third_party_research: 0.30      # RECONCILE
+    mission_telemetry: 0.15         # RECONCILE
+    sme_knowledge: 0.30             # RECONCILE
     restricted: 0.0
   convergence_threshold: 0.85
   curiosity_threshold: 0.70
@@ -347,6 +384,14 @@ validation_steps:
 
 success:
   convergence: "≥70% of edges driven by operational_instruments above Z=0.85 after 90 days of live data"
+  convergence_basis: |
+    The Z=0.85 threshold is defensible from prior NM benchmark work:
+    space_atlas_grace_fo_convergence_benchmark recorded >91% per-edge certainty
+    on 97% of edges and >80% per-edge certainty on 100% of edges using a single
+    GPS-drag-residual error signal on a structurally similar operational pipeline
+    (LEO thermosphere density via GRACE-FO). The 0.85 cislunar target sits inside
+    that demonstrated envelope. See ../leo/ and pod event
+    `space_atlas_grace_fo_convergence_benchmark` (Z=0.97).
   retrospective_accuracy: "Replay of 2024-12 to 2025-12 storm season matches archived response within published error bars for ≥3 storm events"
   curiosity_resolved: "≥3 curiosity triggers resolved by partnership or planned-instrument activation"
   cross_domain: "LEO density model and cislunar transit model share at least one validated coupled edge"
@@ -372,5 +417,5 @@ deployment:
   compile_format: onnx
   fleet_sync:
     protocol: https
-    interval: 3600
+    interval: PT1H
     payload_size: 10KB

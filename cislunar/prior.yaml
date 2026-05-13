@@ -1,8 +1,26 @@
-# nm prior config — cislunar space weather, schema v0.1
+# nm prior config — cislunar space weather
 # The prior defines WHAT to learn: system model, causal hypotheses, and sources.
 # Sources are tiered by access landscape — operational data starts with higher
 # certainty (Z) and lower learning rate (η); third-party research and SME priors
 # start lower-Z, higher-η. Restricted slots are schema-shaped, content-blank.
+#
+# Cadence convention: ISO 8601 durations (PT60S, PT5M, PT6H, P1D) for time
+# intervals. Reserved literals for non-time cadences:
+#   static          — does not change in the operational window
+#   event_driven    — updates only when an upstream event fires
+#   archive_pull    — pulled from an archive on demand, not streamed
+#   continuous      — sub-second / streaming, no fixed cadence
+# Same convention applies in validate.yaml.
+
+version: "0.1"
+schema: nm-prior
+provenance:
+  added: "2026-05-13"
+  added_by: heidi
+  evidence:
+    - swwx_2026_lunar_panel
+    - nasa_sbir_spwx_1_s26a_subtopic
+    - kuettel_lunar_pnt_resilience_slides
 
 domain: space-weather
 entity: cislunar-radiation-environment
@@ -35,14 +53,14 @@ sources:
         name: NOAA Space Weather Prediction Center
         feeds:
           - product: planetary_k_index
-            cadence: 3h
+            cadence: PT3H
             endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
           - product: dst_realtime
-            cadence: 1h
+            cadence: PT1H
           - product: solar_xray_flux
-            cadence: 1m
+            cadence: PT1M
           - product: proton_flux_geo
-            cadence: 5m
+            cadence: PT5M
         access: public
         license: NOAA-public-domain
 
@@ -50,36 +68,36 @@ sources:
         name: NASA Space Environment Testbeds / SET program
         feeds:
           - product: dose_rate_models
-            cadence: hourly
+            cadence: PT1H
         access: public
 
       - id: goes_r_series
         name: GOES-R magnetometer + SEISS + EXIS
         feeds:
           - product: solar_wind_proxy_geo
-            cadence: 1m
+            cadence: PT1M
           - product: energetic_particle_flux
-            cadence: 1m
+            cadence: PT1M
           - product: euv_irradiance
-            cadence: 1m
+            cadence: PT1M
         access: public
 
       - id: sdo
         name: Solar Dynamics Observatory (AIA + HMI + EVE)
         feeds:
           - product: solar_imagery_euv
-            cadence: 12s
+            cadence: PT12S
           - product: magnetogram
-            cadence: 45s
+            cadence: PT45S
         access: public
 
       - id: ace
         name: Advanced Composition Explorer (L1, legacy operational)
         feeds:
           - product: solar_wind_speed
-            cadence: 1m
+            cadence: PT1M
           - product: imf_bz
-            cadence: 1m
+            cadence: PT1M
         access: public
         notes: "Aging spacecraft, validated against DSCOVR as primary"
 
@@ -87,9 +105,9 @@ sources:
         name: DSCOVR (PlasMag + Faraday cup)
         feeds:
           - product: solar_wind_velocity
-            cadence: 1s
+            cadence: PT1S
           - product: imf_vector
-            cadence: 1s
+            cadence: PT1S
         access: public
 
   # ============================================================
@@ -153,10 +171,12 @@ sources:
 
       - id: lunar_trailblazer
         name: Lunar Trailblazer
-        status: launched_or_recent
+        status: launched_mission_anomalous
+        launch_window: "2025 (IMAP rideshare)"
         feeds_planned:
           - lunar_surface_environment
         schema_ready: true
+        notes: "Launched 2025 on IMAP rideshare; mission encountered serious anomalies post-launch. Treat data availability as uncertain. VERIFY current mission status against NASA / mission press releases before sending."
 
       - id: artemis_support_assets
         name: Artemis program ancillary instruments
@@ -170,10 +190,12 @@ sources:
       - id: imap
         name: Interstellar Mapping and Acceleration Probe
         status: launched_2025
+        launch_window: "2025"
         feeds_planned:
           - solar_wind_composition_L1
           - energetic_neutral_atoms
         schema_ready: true
+        notes: "VERIFY launch date and current operational status before sending to space-weather audience."
 
       - id: planned_generic_slot_a
         name: "TBD planned instrument A"
@@ -248,16 +270,16 @@ sources:
         name: Community Coordinated Modeling Center (NASA GSFC)
         outputs:
           - product: enlil_solar_wind_prediction
-            cadence: 6h
+            cadence: PT6H
           - product: swmf_geospace_state
-            cadence: hourly
+            cadence: PT1H
         access: public
 
       - id: nairas
         name: NAIRAS (Nowcast of Atmospheric Ionizing Radiation for Aviation Safety)
         outputs:
           - product: cosmic_ray_dose_rate
-            cadence: hourly
+            cadence: PT1H
         access: public
         extension_note: "Surface-aviation focus; cislunar application requires altitude extrapolation"
 
@@ -265,9 +287,9 @@ sources:
         name: IRENE / AE9-AP9 trapped radiation models
         outputs:
           - product: trapped_electron_flux_model
-            cadence: static_with_updates
+            cadence: static    # statistical climatology; revised on irregular release cycle
           - product: trapped_proton_flux_model
-            cadence: static_with_updates
+            cadence: static    # statistical climatology; revised on irregular release cycle
         access: public
         notes: "Statistical, not real-time. Used as climatology prior for radiation belts"
 
@@ -285,7 +307,8 @@ sources:
     learning_rate_class: medium
     confidence: contractually_gated
     description: "Vehicle-specific telemetry — schema-shaped, content gated by mission ICDs and NDAs"
-    sme_contact_slot: "Don Kuettel (Astrobotic) — slot for engagement"
+    sme_contact_slot: "CLPS provider SME — engagement slot"
+    sme_contact_notes: "Don Kuettel (Intuitive Machines, CLPS) is a candidate engagement target on this slot. Attribution to the SWWX 2026 lunar panel quote is a hypothesis (Z=0.60 in working pod), not a confirmed identification — do not present as such in outreach."
     providers:
 
       - id: clps_im_1

@@ -1,6 +1,22 @@
-# nm validate config — LEO thermosphere density (space-atlas), schema v0.1
+# nm validate config — LEO thermosphere density (space-atlas)
 # Endpoints, learning parameters, and validation strategy for the GRACE-FO-driven
 # causal-discovery pipeline.
+#
+# Reference integrity: every endpoint's `source:` field must resolve to a
+# providers[].id (or top-level sources entry id) in leo/prior.yaml. Cross-file
+# divergence will silently break the loop — audit when either file changes.
+#
+# Cadence convention: ISO 8601 durations (PT10S, PT1H, P1D) with reserved
+# literals: static, event_driven, archive_pull, continuous.
+
+version: "0.1"
+schema: nm-validate
+provenance:
+  added: "2026-05-13"
+  added_by: heidi
+  evidence:
+    - grace_fo_dryrun_results_2026_03
+    - space_atlas_grace_fo_convergence_benchmark
 
 domain: space-weather
 region_set: leo
@@ -17,8 +33,8 @@ endpoints:
     protocol: file
     endpoint: "./data/grace-fo/raw"
     download_script: "scripts/download-grace-fo.js"
-    cadence_raw: 10s
-    cadence_processed: 1h
+    cadence_raw: PT10S
+    cadence_processed: PT1H
     format:
       file_pattern: "GC_DNS_ACC_*.txt"
       delimiter: whitespace
@@ -43,7 +59,7 @@ endpoints:
     endpoint: "${MONGODB_URI}"
     db: space-waze
     collection: weather_hourly
-    cadence: 3600
+    cadence: PT1H
     format:
       fields: [timestamp, imf_bz, dst, ae_index, solar_wind_speed, solar_wind_density]
     maps_to: [imf_bz, dst, ae_index, solar_wind_speed, solar_wind_density]
@@ -78,6 +94,10 @@ endpoints:
 
 learning:
   rate_function: eta_z
+  # SPEC NOTE: This block is the source of truth — it mirrors the shipping
+  # learn-from-grace-fo.js loop. cislunar/validate.yaml's eta_max_by_bucket
+  # should be reconciled against the actual computeLearningRate behavior used
+  # here before either file is shared externally.
   initial_certainty: 0.30
   convergence_threshold: 0.85
   curiosity_threshold: 0.70
@@ -165,6 +185,12 @@ success:
   reproducibility: "Re-running pipeline against the same archive yields identical per-edge final certainty within numerical tolerance"
   certainty_lift: "Hourly-averaged GRACE-FO recovers ≥ TLE baseline certainty on all 5 drivers; ≥ +0.10 on the leading driver"
   high_certainty_edges: "≥1 edge in the 0.80-0.95 'high' bin"
+  high_certainty_edges_basis: |
+    Reference: space_atlas_grace_fo_convergence_benchmark documented >91%
+    per-edge certainty on 97% of edges and >80% per-edge certainty on 100%
+    of edges using a single GPS-drag-residual error signal on this same
+    architecture. The criterion above is conservative relative to that
+    benchmark.
   weather_coverage: "≥95% of observation hours have weather data within ±1h"
   cross_domain_export: "LEO model state exportable as a prior contribution to cislunar transit-phase model"
 
@@ -189,5 +215,5 @@ deployment:
   compile_format: onnx
   fleet_sync:
     protocol: https
-    interval: 3600
+    interval: PT1H
     payload_size: 4KB

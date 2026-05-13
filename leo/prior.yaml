@@ -1,6 +1,19 @@
-# nm prior config — LEO thermosphere density (space-atlas), schema v0.1
+# nm prior config — LEO thermosphere density (space-atlas)
 # Derived from the GRACE-FO causal-discovery pipeline (~/space-waze).
 # WHAT to learn: density response in LEO voxels driven by space-weather inputs.
+#
+# Cadence convention: ISO 8601 durations (PT10S, PT1H, P1D) with reserved
+# literals: static, event_driven, archive_pull, continuous.
+
+version: "0.1"
+schema: nm-prior
+provenance:
+  added: "2026-05-13"
+  added_by: heidi
+  evidence:
+    - grace_fo_dryrun_results_2026_03
+    - space_atlas_grace_fo_convergence_benchmark
+    - nasa_sbir_spwx_1_s26a_subtopic
 
 domain: space-weather
 entity: leo-thermosphere-density
@@ -26,8 +39,8 @@ sources:
     license: "CC BY 4.0"
     url: "https://thermosphere.tudelft.nl/data/data/version_02/GRACE-FO_data/"
     format: text
-    cadence_raw: 10s
-    cadence_averaged: 1h
+    cadence_raw: PT10S
+    cadence_averaged: PT1H
     confidence: medium-high
     altitude_coverage: "460-510 km"
     fields:
@@ -46,7 +59,7 @@ sources:
     id: tle_density
     name: TLE-derived atmospheric density (drag inversion)
     confidence: low-medium
-    cadence: daily
+    cadence: P1D
     altitude_coverage: "LEO 200-2000 km"
     notes: "Bottleneck identified — temporal resolution limits learnable certainty"
 
@@ -57,7 +70,7 @@ sources:
     storage: "MongoDB collection weather_hourly"
     fields: [timestamp, imf_bz, dst, ae_index, solar_wind_speed, solar_wind_density]
     confidence: high
-    cadence: 1h
+    cadence: PT1H
     defaults_when_missing:
       imf_bz: 0
       dst: 0
