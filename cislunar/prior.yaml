@@ -1,0 +1,459 @@
+# nm prior config — cislunar space weather, schema v0.1
+# The prior defines WHAT to learn: system model, causal hypotheses, and sources.
+# Sources are tiered by access landscape — operational data starts with higher
+# certainty (Z) and lower learning rate (η); third-party research and SME priors
+# start lower-Z, higher-η. Restricted slots are schema-shaped, content-blank.
+
+domain: space-weather
+entity: cislunar-radiation-environment
+scope: per-region    # per-region | per-asset | per-orbit | fleet
+regions:
+  - earth_to_l1
+  - geo_transit
+  - lunar_vicinity
+  - lunar_surface
+  - deep_space_gateway
+
+# --- SOURCES ---
+# Eight buckets matching the access/credibility landscape for cislunar weather.
+# Starting Z and η are per-bucket conventions; per-source overrides allowed.
+
+sources:
+
+  # ============================================================
+  # 1. OPERATIONAL INSTRUMENTS  (Z_start = 0.75–0.85, η low)
+  # Real-time, validated, wired feeds.
+  # ============================================================
+  operational_instruments:
+    starting_certainty: 0.80
+    learning_rate_class: low      # η = ηmax * (1 - σ(k*(Z - 0.5)))
+    confidence: high
+    description: "Real-time operational feeds for nowcast and short-horizon prediction"
+    providers:
+
+      - id: noaa_swpc
+        name: NOAA Space Weather Prediction Center
+        feeds:
+          - product: planetary_k_index
+            cadence: 3h
+            endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+          - product: dst_realtime
+            cadence: 1h
+          - product: solar_xray_flux
+            cadence: 1m
+          - product: proton_flux_geo
+            cadence: 5m
+        access: public
+        license: NOAA-public-domain
+
+      - id: nasa_set
+        name: NASA Space Environment Testbeds / SET program
+        feeds:
+          - product: dose_rate_models
+            cadence: hourly
+        access: public
+
+      - id: goes_r_series
+        name: GOES-R magnetometer + SEISS + EXIS
+        feeds:
+          - product: solar_wind_proxy_geo
+            cadence: 1m
+          - product: energetic_particle_flux
+            cadence: 1m
+          - product: euv_irradiance
+            cadence: 1m
+        access: public
+
+      - id: sdo
+        name: Solar Dynamics Observatory (AIA + HMI + EVE)
+        feeds:
+          - product: solar_imagery_euv
+            cadence: 12s
+          - product: magnetogram
+            cadence: 45s
+        access: public
+
+      - id: ace
+        name: Advanced Composition Explorer (L1, legacy operational)
+        feeds:
+          - product: solar_wind_speed
+            cadence: 1m
+          - product: imf_bz
+            cadence: 1m
+        access: public
+        notes: "Aging spacecraft, validated against DSCOVR as primary"
+
+      - id: dscovr
+        name: DSCOVR (PlasMag + Faraday cup)
+        feeds:
+          - product: solar_wind_velocity
+            cadence: 1s
+          - product: imf_vector
+            cadence: 1s
+        access: public
+
+  # ============================================================
+  # 2. RESEARCH / HISTORICAL  (Z_start = 0.60–0.70, η low-medium)
+  # Validated retrospectively. Used for prior calibration, not real-time.
+  # ============================================================
+  research_historical:
+    starting_certainty: 0.65
+    learning_rate_class: low-medium
+    confidence: medium-high
+    description: "Calibration corpus — magnetosphere and inner-heliosphere physics"
+    providers:
+
+      - id: van_allen_probes
+        name: Van Allen Probes (RBSP, 2012–2019)
+        feeds:
+          - product: relativistic_electron_flux
+            archive: mission_complete
+          - product: ring_current_ion_composition
+            archive: mission_complete
+        used_for: ["radiation_belt_priors", "storm_response_calibration"]
+
+      - id: mms
+        name: Magnetospheric Multiscale (MMS)
+        feeds:
+          - product: reconnection_electron_dynamics
+        used_for: ["magnetopause_coupling_priors"]
+
+      - id: artemis
+        name: ARTEMIS (lunar-orbiting THEMIS extensions)
+        feeds:
+          - product: lunar_wake_plasma
+          - product: solar_wind_at_lunar_distance
+        used_for: ["lunar_environment_priors"]
+
+      - id: arase
+        name: Arase / ERG (JAXA)
+        feeds:
+          - product: inner_magnetosphere_particles
+        used_for: ["cross_validation_van_allen"]
+
+  # ============================================================
+  # 3. PLANNED INSTRUMENTS  (Z_start = 0.30, η medium)
+  # Schema-ready slots. Z and η adjust at launch when feeds turn live.
+  # ============================================================
+  planned_instruments:
+    starting_certainty: 0.30
+    learning_rate_class: medium
+    confidence: low
+    description: "Missions in development — schema present, endpoints TBD"
+    providers:
+
+      - id: gdc
+        name: Geospace Dynamics Constellation (NASA)
+        status: in_development
+        expected_launch_window: "late_decade"
+        feeds_planned:
+          - thermosphere_wind_3d
+          - ion_neutral_coupling
+        schema_ready: true
+
+      - id: lunar_trailblazer
+        name: Lunar Trailblazer
+        status: launched_or_recent
+        feeds_planned:
+          - lunar_surface_environment
+        schema_ready: true
+
+      - id: artemis_support_assets
+        name: Artemis program ancillary instruments
+        status: phased
+        feeds_planned:
+          - lunar_orbit_radiation
+          - surface_dose_rate
+        schema_ready: true
+        notes: "Schema slot; specific assets bound as Artemis manifest firms up"
+
+      - id: imap
+        name: Interstellar Mapping and Acceleration Probe
+        status: launched_2025
+        feeds_planned:
+          - solar_wind_composition_L1
+          - energetic_neutral_atoms
+        schema_ready: true
+
+      - id: planned_generic_slot_a
+        name: "TBD planned instrument A"
+        status: placeholder
+        schema_ready: true
+
+  # ============================================================
+  # 4. COMMERCIAL PARTNERSHIPS  (Z_start = 0.40–0.55, η medium)
+  # Sized to real categories; provider may be TBD pre-contract.
+  # ============================================================
+  commercial_partnerships:
+    starting_certainty: 0.45
+    learning_rate_class: medium
+    confidence: low-medium
+    description: "Commercial sensor networks and constellations — category is real, provider may be TBD"
+    providers:
+
+      - id: spire
+        name: Spire Global
+        category: gnss_ro_thermosphere
+        provider_relationship: TBD
+        feeds_potential: [gnss_radio_occultation_density, ionospheric_tec]
+
+      - id: hawkeye360
+        name: HawkEye 360
+        category: rf_geolocation_context
+        provider_relationship: TBD
+        feeds_potential: [rf_environment_baseline]
+
+      - id: planet
+        name: Planet Labs
+        category: optical_earth_imaging
+        provider_relationship: TBD
+        feeds_potential: [aurora_imagery_optical]
+
+      - id: geooptics
+        name: GeoOptics
+        category: gnss_ro_atmospheric
+        provider_relationship: TBD
+        feeds_potential: [neutral_atmosphere_profile]
+
+      - id: muon_space
+        name: Muon Space
+        category: gnss_ro_plus_microwave
+        provider_relationship: TBD
+        feeds_potential: [space_weather_riometry, gnss_ro]
+
+      - id: blacksky
+        name: BlackSky
+        category: optical_tipping_cueing
+        provider_relationship: TBD
+
+      - id: commercial_generic_slot
+        name: "TBD commercial provider"
+        category: TBD
+        provider_relationship: TBD
+        schema_ready: true
+
+  # ============================================================
+  # 5. THIRD-PARTY RESEARCH  (Z_start = 0.25–0.40, η high)
+  # Model outputs, not direct measurement. Larger error envelopes.
+  # ============================================================
+  third_party_research:
+    starting_certainty: 0.30
+    learning_rate_class: high
+    confidence: low
+    description: "Model outputs and university feeds — treated as priors to update against measurement"
+    discipline_note: "Model outputs are NOT ground truth. They carry larger error envelopes than operational sensors. Learning treats them as hypotheses, not validators."
+    providers:
+
+      - id: ccmc
+        name: Community Coordinated Modeling Center (NASA GSFC)
+        outputs:
+          - product: enlil_solar_wind_prediction
+            cadence: 6h
+          - product: swmf_geospace_state
+            cadence: hourly
+        access: public
+
+      - id: nairas
+        name: NAIRAS (Nowcast of Atmospheric Ionizing Radiation for Aviation Safety)
+        outputs:
+          - product: cosmic_ray_dose_rate
+            cadence: hourly
+        access: public
+        extension_note: "Surface-aviation focus; cislunar application requires altitude extrapolation"
+
+      - id: irene_ae9_ap9
+        name: IRENE / AE9-AP9 trapped radiation models
+        outputs:
+          - product: trapped_electron_flux_model
+            cadence: static_with_updates
+          - product: trapped_proton_flux_model
+            cadence: static_with_updates
+        access: public
+        notes: "Statistical, not real-time. Used as climatology prior for radiation belts"
+
+      - id: university_feeds_slot
+        name: "University-provided research feeds"
+        outputs: []
+        schema_ready: true
+
+  # ============================================================
+  # 6. MISSION TELEMETRY  (Z_start = 0.50–0.70 when bound, blank now)
+  # Vehicle-specific data. Slot is shaped, content arrives via mission ICDs.
+  # ============================================================
+  mission_telemetry:
+    starting_certainty: 0.50
+    learning_rate_class: medium
+    confidence: contractually_gated
+    description: "Vehicle-specific telemetry — schema-shaped, content gated by mission ICDs and NDAs"
+    sme_contact_slot: "Don Kuettel (Astrobotic) — slot for engagement"
+    providers:
+
+      - id: clps_im_1
+        name: Intuitive Machines IM-1 (Odysseus)
+        status: flown
+        feeds_potential: [vehicle_dosimeter, attitude_response_to_environment]
+        schema_ready: true
+
+      - id: clps_im_2
+        name: Intuitive Machines IM-2
+        status: flown_or_imminent
+        schema_ready: true
+
+      - id: clps_im_3
+        name: Intuitive Machines IM-3
+        status: planned
+        schema_ready: true
+
+      - id: clps_generic
+        name: "CLPS mission TBD"
+        status: placeholder
+        schema_ready: true
+
+      - id: artemis_vehicle_telemetry
+        name: Artemis vehicle telemetry
+        status: phased
+        feeds_potential: [crew_dosimetry, vehicle_systems_response]
+        schema_ready: true
+        access_note: "Some streams ITAR-controlled — see restricted bucket"
+
+      - id: commercial_lunar_relay
+        name: Future commercial lunar relay assets
+        status: future
+        schema_ready: true
+
+  # ============================================================
+  # 7. SME KNOWLEDGE  (Z_start = 0.25–0.45, η high)
+  # Expert priors via natural language. LLM extracts to causal structure.
+  # ============================================================
+  sme_knowledge:
+    starting_certainty: 0.35
+    learning_rate_class: high
+    confidence: low-medium
+    description: "Expert-provided priors — encoded as documents, extracted to causal hypotheses"
+    sme_contact_slot: "Tzu-Wei Fang — WAM-IPE; commercial-spacecraft forecasting"
+    providers:
+
+      - id: sme_tzuwei_wamipe
+        name: WAM-IPE coupled whole-atmosphere ionosphere prior
+        format: document
+        path: "./priors/wamipe_prior.md"
+        status: placeholder
+        schema_ready: true
+        prior_focus:
+          - "more and better space weather forecasting capabilities for the commercial spacecraft industry"
+          - thermosphere_ionosphere_coupling
+          - storm_time_density_response
+
+      - id: sme_generic_slot
+        name: "Additional SME prior slot"
+        format: document
+        schema_ready: true
+
+  # ============================================================
+  # 8. RESTRICTED  (schema-shaped, content-blank)
+  # ITAR / classified / proprietary. We acknowledge the slot exists.
+  # ============================================================
+  restricted:
+    starting_certainty: null
+    learning_rate_class: null
+    confidence: gated
+    description: "ITAR / classified / proprietary — schema shape declared, content blank pending access"
+    access_landscape_acknowledgement: true
+    providers:
+
+      - id: itar_slot
+        name: "ITAR-controlled feeds"
+        access: itar_gated
+        schema_ready: true
+        content: null
+
+      - id: classified_slot
+        name: "Classified DoD / IC feeds"
+        access: clearance_gated
+        schema_ready: true
+        content: null
+
+      - id: proprietary_slot
+        name: "Proprietary commercial feeds (NDA-gated)"
+        access: contract_gated
+        schema_ready: true
+        content: null
+
+# --- CAUSAL HYPOTHESES ---
+# Edges expected to exist. Auto-extracted from sources when format permits;
+# otherwise declared here for the learning loop to validate against data.
+
+hypotheses:
+
+  - cause: cme_arrival
+    effect: dst_index
+    expected_weight: dominant
+    lag: 12-48h
+    signature: "Dst depression follows southward Bz at L1 by 30-90 min"
+    notes: "Operational backbone of storm-time response"
+
+  - cause: imf_bz_southward
+    effect: radiation_belt_enhancement
+    expected_weight: primary
+    lag: 1-3 days
+    signature: "MeV electron flux rises after sustained southward Bz"
+
+  - cause: solar_proton_event
+    effect: cislunar_dose_rate
+    expected_weight: dominant_episodic
+    lag: 0-12h
+    signature: "Step increase in dose rate outside Earth's magnetosphere"
+    notes: "Critical for Artemis crew and CLPS payload risk"
+
+  - cause: solar_wind_dynamic_pressure
+    effect: magnetopause_standoff
+    expected_weight: primary
+    lag: 30-90min
+    signature: "Magnetopause compression correlates with sqrt(n*v^2)"
+
+  - cause: geomagnetic_storm
+    effect: thermosphere_density_at_leo
+    expected_weight: dominant
+    lag: 2-12h
+    signature: "Density spike at LEO altitudes during storm main phase"
+    notes: "Cross-domain link to LEO prior (see ../leo/prior.yaml)"
+
+  - cause: lunar_wake_crossing
+    effect: vehicle_charging_environment
+    expected_weight: moderate
+    lag: orbit-phase
+    signature: "Charging differential when crossing terminator and wake"
+    notes: "ARTEMIS data underpins this prior"
+
+# --- INTERACTIONS ---
+
+interactions:
+  - factors: [solar_proton_event, magnetosphere_state]
+    type: shielding_modulation
+    note: "Closed magnetosphere reduces SEP penetration to Earth-side cislunar"
+
+  - factors: [solar_wind_speed, imf_bz, solar_wind_density]
+    type: storm_driver_triplet
+    note: "Storm intensity nonlinear in this triplet"
+
+  - factors: [trapped_radiation_climatology, cme_compression]
+    type: belt_dropout_then_rebuild
+    note: "Storms first deplete, then enhance radiation belts"
+
+# --- KNOWN GAPS ---
+
+known_gaps:
+  - "Real-time cislunar in-situ dose measurement outside magnetosphere (covered only by mission-of-opportunity)"
+  - "Surface-level lunar radiation environment under storm conditions"
+  - "Crew-effective-dose translation from particle spectra for Artemis ConOps"
+  - "Coupling between far-side lunar environment and Earth-side L1 monitors"
+
+# --- BUILD OPTIONS ---
+
+build:
+  initial_certainty: from_source
+  curiosity_threshold: 0.70
+  max_nodes: 200
+  target_device: edge_or_cloud      # cislunar models likely live above MCU class
+  cross_domain_links:
+    - "../leo/prior.yaml"           # thermosphere density at LEO informs cislunar transit phases

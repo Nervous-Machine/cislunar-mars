@@ -1,0 +1,174 @@
+# nm prior config — LEO thermosphere density (space-atlas), schema v0.1
+# Derived from the GRACE-FO causal-discovery pipeline (~/space-waze).
+# WHAT to learn: density response in LEO voxels driven by space-weather inputs.
+
+domain: space-weather
+entity: leo-thermosphere-density
+scope: per-voxel
+voxelization:
+  description: "Latitude × local-solar-time × altitude bins"
+  latitude_bins: "from voxels-v3 LATITUDE_BINS"
+  local_time_bins: "from voxels-v3 LOCAL_TIME_BINS (includes midnight-wrap 21-3h)"
+  altitude_bins:
+    gracefo: { id: '460-510', min: 460, max: 510 }
+    note: "Single altitude bin matching GRACE-FO orbit. Add bins as data sources expand."
+
+# --- SOURCES ---
+
+sources:
+
+  # Type: high-cadence accelerometer-derived density (Z=0.65-0.75)
+  # Validates the architecture: 10s cadence resolves what TLE-derived density cannot.
+  - type: measurement
+    id: gracefo
+    name: GRACE-FO accelerometer-derived thermosphere density
+    provider: TU Delft TOLEOS project
+    license: "CC BY 4.0"
+    url: "https://thermosphere.tudelft.nl/data/data/version_02/GRACE-FO_data/"
+    format: text
+    cadence_raw: 10s
+    cadence_averaged: 1h
+    confidence: medium-high
+    altitude_coverage: "460-510 km"
+    fields:
+      timestamp: "parts[0] + 'T' + parts[1]"
+      altitude_m: "parts[3]"
+      longitude_deg: "parts[4]"
+      latitude_deg: "parts[5]"
+      local_solar_time_h: "parts[6]"
+      density_kg_m3: "parts[8]"
+      flag: "parts[10]   # only flag==0 retained"
+    description: "Ground truth for density at the GRACE-FO orbit altitude"
+
+  # Type: derived density from two-line element drag (Z=0.30-0.50)
+  # Lower temporal resolution; used as climatology / broader altitude coverage.
+  - type: derived_measurement
+    id: tle_density
+    name: TLE-derived atmospheric density (drag inversion)
+    confidence: low-medium
+    cadence: daily
+    altitude_coverage: "LEO 200-2000 km"
+    notes: "Bottleneck identified — temporal resolution limits learnable certainty"
+
+  # Type: operational space-weather drivers (Z=0.70-0.85)
+  - type: measurement
+    id: weather_hourly
+    name: Hourly space-weather drivers
+    storage: "MongoDB collection weather_hourly"
+    fields: [timestamp, imf_bz, dst, ae_index, solar_wind_speed, solar_wind_density]
+    confidence: high
+    cadence: 1h
+    defaults_when_missing:
+      imf_bz: 0
+      dst: 0
+      ae_index: 200
+      solar_wind_speed: 400
+      solar_wind_density: 5
+
+  # Type: voxel library — initial multipliers and lags from prior physics
+  - type: document
+    id: voxels_v3
+    name: voxels-v3 library
+    format: code
+    path: "../space-waze/lib/voxels-v3.js"
+    confidence: medium
+    extracts:
+      - LATITUDE_BINS
+      - LOCAL_TIME_BINS
+      - PHYSICAL_DRIVERS
+      - getInitialMultiplier
+      - getExpectedLag
+    description: "Encoded physics prior — initial base multipliers and expected response lags"
+
+# --- CAUSAL HYPOTHESES ---
+# Driver → density edges. One edge per (driver, voxel) pair; AE filtered to
+# high-latitude voxels. Initial multipliers and expected lags come from
+# voxels-v3.PHYSICAL_DRIVERS.
+
+hypotheses:
+
+  - cause: imf_bz
+    effect: density_at_voxel
+    expected_weight: primary
+    sign: southward_enhances
+    lag: 2-8h
+    signature: "Density rises during sustained southward Bz"
+    starting_certainty_avg: 0.450
+
+  - cause: dst
+    effect: density_at_voxel
+    expected_weight: primary
+    sign: negative_dst_enhances
+    lag: 2-12h
+    signature: "Density spike during storm main and recovery phase"
+    starting_certainty_avg: 0.490
+
+  - cause: ae_index
+    effect: density_at_voxel
+    expected_weight: regional_primary
+    latitude_filter: ["high_north", "auroral_north"]
+    lag: 1-4h
+    signature: "Auroral heating drives high-latitude density spikes"
+    starting_certainty_avg: 0.389
+
+  - cause: solar_wind_speed
+    effect: density_at_voxel
+    expected_weight: secondary
+    lag: 4-24h
+    signature: "High-speed streams enhance density on multi-hour timescale"
+    starting_certainty_avg: 0.132
+
+  - cause: solar_wind_density
+    effect: density_at_voxel
+    expected_weight: secondary
+    lag: 2-12h
+    signature: "Solar-wind dynamic pressure component"
+    starting_certainty_avg: 0.196
+
+# --- INTERACTIONS ---
+
+interactions:
+  - factors: [imf_bz, solar_wind_speed]
+    type: storm_driver_pair
+    note: "Bz × speed approximates electric-field-like coupling"
+
+  - factors: [dst, ae_index]
+    type: ring_current_vs_auroral
+    note: "Decompose global-storm vs regional-substorm response"
+
+  - factors: [solar_wind_speed, solar_wind_density]
+    type: dynamic_pressure
+    note: "ρv² combination drives magnetopause compression"
+
+# --- BASELINE STRATEGY ---
+# How to compute the per-voxel quiet-time baseline that error signals
+# are measured against (see learn-from-grace-fo.js fix #6).
+
+baseline:
+  quiet_definition:
+    dst_min: -30
+    imf_bz_min: -5
+  primary: "median of quiet-time density per voxel (≥3 quiet observations required)"
+  fallback: "median of all-time density per voxel"
+  rationale: "Storm-time enhancement is measured relative to quiet baseline; otherwise climatology dominates the signal"
+
+# --- KNOWN GAPS ---
+
+known_gaps:
+  - "Single-altitude coverage (460-510 km) — multi-altitude requires additional accelerometer missions"
+  - "No coverage of polar caps under extreme storm conditions"
+  - "Solar EUV irradiance not currently a driver — could be added when SDO/EVE feed is wired"
+  - "No commercial GNSS-RO density inputs yet (Spire, Muon Space, GeoOptics)"
+
+# --- BUILD OPTIONS ---
+
+build:
+  initial_certainty: from_source
+  curiosity_threshold: 0.70
+  min_certainty_weight: 0.10        # FIX 8: activity gating threshold
+  voxel_history_window: 10
+  multiplier_bounds:
+    min: 0.5
+    max: 5.0
+  multiplier_update_scale: 0.1
+  target_device: cloud_or_edge

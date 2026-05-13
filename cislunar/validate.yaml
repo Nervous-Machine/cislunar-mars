@@ -1,0 +1,376 @@
+# nm validate config — cislunar, schema v0.1
+# Defines HOW to learn: endpoints, learning parameters, validation steps,
+# success criteria. Endpoints are per-source-bucket and inherit starting
+# certainty + learning-rate class from prior.yaml.
+
+domain: space-weather
+region_set: cislunar
+entity_scope: earth_to_lunar_surface
+model_id: cislunar-v0.1
+
+# --- DATA ENDPOINTS ---
+# Each endpoint maps to one or more nodes in the causal graph and carries a
+# role that governs how its data drives the learning loop:
+#   primary_error_signal — used to compute error = |predicted - actual|
+#   input               — appears in driver vector
+#   context             — modulates state, not directly fit
+#   prediction_baseline — prediction source compared against measurement
+#   static              — slowly-varying configuration / climatology
+
+endpoints:
+
+  # ===== OPERATIONAL — primary error signals and inputs =====
+
+  - name: swpc_kp_dst
+    bucket: operational_instruments
+    source: noaa_swpc
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+    cadence: 60
+    format:
+      fields: [timestamp, kp, dst]
+    maps_to: [geomagnetic_storm, dst_index]
+    role: primary_error_signal
+
+  - name: dscovr_solar_wind
+    bucket: operational_instruments
+    source: dscovr
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
+    cadence: 60
+    format:
+      fields: [timestamp, density, speed, temperature]
+    maps_to: [solar_wind_dynamic_pressure, solar_wind_speed]
+    role: input
+
+  - name: dscovr_imf
+    bucket: operational_instruments
+    source: dscovr
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"
+    cadence: 60
+    format:
+      fields: [timestamp, bx_gsm, by_gsm, bz_gsm, bt]
+    maps_to: [imf_bz_southward]
+    role: input
+
+  - name: goes_xray
+    bucket: operational_instruments
+    source: goes_r_series
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json"
+    cadence: 60
+    format:
+      fields: [time_tag, flux, energy]
+    maps_to: [solar_xray_flux]
+    role: input
+
+  - name: goes_proton_flux
+    bucket: operational_instruments
+    source: goes_r_series
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
+    cadence: 300
+    format:
+      fields: [time_tag, energy, flux]
+    maps_to: [solar_proton_event, cislunar_dose_rate]
+    role: primary_error_signal
+    notes: "Proton flux at GEO is best operational proxy for cislunar SEP onset"
+
+  - name: sdo_euv
+    bucket: operational_instruments
+    source: sdo
+    protocol: http
+    endpoint: "https://lasp.colorado.edu/eve/data_access/"
+    cadence: 60
+    format:
+      fields: [timestamp, irradiance_bands]
+    maps_to: [solar_xray_flux, thermosphere_density_at_leo]
+    role: input
+
+  - name: ace_swepam_legacy
+    bucket: operational_instruments
+    source: ace
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/json/ace/swepam/ace_swepam_1h.json"
+    cadence: 3600
+    format:
+      fields: [time_tag, dsflag, dens, speed, temperature]
+    maps_to: [solar_wind_speed]
+    role: input
+    notes: "Legacy backup to DSCOVR; cross-validate before trusting"
+
+  # ===== RESEARCH / HISTORICAL — used for prior calibration, not live =====
+
+  - name: van_allen_archive
+    bucket: research_historical
+    source: van_allen_probes
+    protocol: file
+    endpoint: "https://rbsp-ect.newmexicoconsortium.org/data_pub/"
+    cadence: archive_pull
+    format:
+      fields: [timestamp, L_shell, mlt, electron_flux_relativistic]
+    maps_to: [radiation_belt_enhancement]
+    role: prediction_baseline
+    use_phase: prior_calibration_only
+
+  - name: artemis_lunar_solar_wind
+    bucket: research_historical
+    source: artemis
+    protocol: file
+    endpoint: "https://artemis.ssl.berkeley.edu/data/"
+    cadence: archive_pull
+    format:
+      fields: [timestamp, position_lunar, plasma_density, b_vector]
+    maps_to: [lunar_wake_crossing, solar_wind_at_lunar_distance]
+    role: prediction_baseline
+    use_phase: prior_calibration_only
+
+  - name: mms_reconnection_archive
+    bucket: research_historical
+    source: mms
+    protocol: file
+    cadence: archive_pull
+    maps_to: [magnetopause_standoff]
+    role: prediction_baseline
+    use_phase: prior_calibration_only
+
+  # ===== PLANNED — schema slots, become active at launch =====
+
+  - name: gdc_thermosphere_winds
+    bucket: planned_instruments
+    source: gdc
+    protocol: TBD
+    endpoint: TBD
+    cadence: TBD
+    maps_to: [thermosphere_density_at_leo]
+    role: input
+    status: schema_only
+
+  - name: imap_solar_wind_l1
+    bucket: planned_instruments
+    source: imap
+    protocol: TBD
+    endpoint: TBD
+    cadence: TBD
+    maps_to: [solar_wind_speed, solar_wind_dynamic_pressure]
+    role: input
+    status: schema_only
+
+  - name: artemis_radiation_ancillary
+    bucket: planned_instruments
+    source: artemis_support_assets
+    protocol: TBD
+    cadence: TBD
+    maps_to: [cislunar_dose_rate]
+    role: primary_error_signal
+    status: schema_only
+
+  # ===== COMMERCIAL — TBD until partnership =====
+
+  - name: spire_gnss_ro
+    bucket: commercial_partnerships
+    source: spire
+    protocol: http
+    endpoint: TBD
+    cadence: TBD
+    maps_to: [thermosphere_density_at_leo, ionospheric_tec]
+    role: input
+    status: partnership_TBD
+
+  - name: muon_space_gnss_ro
+    bucket: commercial_partnerships
+    source: muon_space
+    protocol: TBD
+    cadence: TBD
+    maps_to: [thermosphere_density_at_leo]
+    role: input
+    status: partnership_TBD
+
+  - name: geooptics_neutral_profile
+    bucket: commercial_partnerships
+    source: geooptics
+    protocol: TBD
+    cadence: TBD
+    maps_to: [thermosphere_density_at_leo]
+    role: input
+    status: partnership_TBD
+
+  # ===== THIRD-PARTY RESEARCH — models, low Z high η =====
+
+  - name: ccmc_enlil
+    bucket: third_party_research
+    source: ccmc
+    protocol: http
+    endpoint: "https://iswa.gsfc.nasa.gov/iswa_data_tree/model/heliosphere/wsa_enlil/"
+    cadence: 6h
+    format:
+      fields: [timestamp, sw_speed_predicted, sw_density_predicted, cme_arrival_predicted]
+    maps_to: [cme_arrival, solar_wind_speed]
+    role: prediction_baseline
+    validation_discipline: model_output
+    notes: "Model output, not measurement. Error = |ENLIL_prediction - DSCOVR_actual|"
+
+  - name: nairas_dose_rate
+    bucket: third_party_research
+    source: nairas
+    protocol: http
+    endpoint: "https://sol.spacenvironment.net/nairas/"
+    cadence: 3600
+    format:
+      fields: [timestamp, altitude, latitude, longitude, dose_rate]
+    maps_to: [cislunar_dose_rate]
+    role: prediction_baseline
+    validation_discipline: model_output
+    notes: "Aviation-altitude model. Extrapolation to cislunar carries large uncertainty"
+
+  - name: ae9_ap9_climatology
+    bucket: third_party_research
+    source: irene_ae9_ap9
+    protocol: file
+    cadence: static
+    format:
+      fields: [L_shell, energy, flux_percentile]
+    maps_to: [radiation_belt_enhancement]
+    role: static
+    validation_discipline: statistical_climatology
+
+  # ===== MISSION TELEMETRY — schema only, gated by ICDs =====
+
+  - name: clps_vehicle_dosimeter
+    bucket: mission_telemetry
+    source: clps_generic
+    protocol: TBD
+    endpoint: TBD
+    cadence: TBD
+    maps_to: [cislunar_dose_rate, vehicle_charging_environment]
+    role: primary_error_signal
+    status: ICD_pending
+    sme_contact: "Don Kuettel (Astrobotic) — engagement slot"
+
+  - name: artemis_crew_dosimetry
+    bucket: mission_telemetry
+    source: artemis_vehicle_telemetry
+    protocol: TBD
+    cadence: TBD
+    maps_to: [cislunar_dose_rate]
+    role: primary_error_signal
+    status: gated_phased
+
+  # ===== SME PRIORS — natural-language documents =====
+
+  - name: wamipe_prior_doc
+    bucket: sme_knowledge
+    source: sme_tzuwei_wamipe
+    protocol: file
+    endpoint: "./priors/wamipe_prior.md"
+    cadence: event_driven
+    maps_to: [thermosphere_density_at_leo, ionospheric_tec]
+    role: input
+    status: SME_engagement_pending
+    extraction: llm_to_hypotheses
+
+  # ===== RESTRICTED — schema shape only =====
+
+  - name: itar_slot_endpoint
+    bucket: restricted
+    source: itar_slot
+    protocol: null
+    endpoint: null
+    cadence: null
+    maps_to: []
+    role: null
+    status: content_blank
+    access: itar_gated
+
+# --- LEARNING PARAMETERS ---
+
+learning:
+  rate_function: eta_z              # η(Z) = ηmax * (1 - σ(k*(Z - Z_mid)))
+  eta_max_by_bucket:
+    operational_instruments: 0.05
+    research_historical: 0.05
+    planned_instruments: 0.20
+    commercial_partnerships: 0.15
+    third_party_research: 0.30
+    mission_telemetry: 0.15
+    sme_knowledge: 0.30
+    restricted: 0.0
+  convergence_threshold: 0.85
+  curiosity_threshold: 0.70
+  min_observations: 20
+  max_cycles_per_session: 100
+  feedback_modes:
+    - auto_update
+    - weighted_update
+    - flag_for_review
+    - stable
+  cross_domain_link:
+    leo_validate: "../leo/validate.yaml"
+    note: "LEO density updates inform cislunar transit-phase priors"
+
+# --- VALIDATION STRATEGY ---
+
+validation_steps:
+
+  - name: baseline_quiet_period
+    description: "Collect 30 days of all operational feeds during a geomagnetically quiet interval (Kp < 3)"
+    target: "Establish baseline correlations and noise envelopes per voxel"
+    duration: 30d
+
+  - name: retrospective_storm_replay
+    description: "Replay 2024–2025 storm events; compare predicted vs measured cislunar particle flux and dose-rate proxies"
+    target: "Verify operational pipeline reproduces known storm response"
+    requires: [van_allen_archive, mms_reconnection_archive, goes_proton_flux]
+    duration: 14d
+
+  - name: model_vs_measurement
+    description: "Continuously compare ENLIL and NAIRAS predictions vs DSCOVR / GOES truth"
+    target: "Quantify model error envelopes; tune third_party_research bucket η"
+    duration: continuous
+
+  - name: cislunar_transit_phase
+    description: "When CLPS or Artemis telemetry becomes available, validate dose-rate prediction during Earth-to-Moon transit"
+    target: "Demonstrate prediction accuracy across magnetosphere → cislunar transition"
+    requires: [clps_vehicle_dosimeter]
+    duration: per_mission
+    status: dependent_on_mission_engagement
+
+  - name: sme_prior_extraction
+    description: "Parse WAM-IPE and other SME documents; verify extracted hypotheses match expert intent"
+    target: "Validate LLM-extraction fidelity for natural-language priors"
+    requires: [wamipe_prior_doc]
+    duration: as_documents_arrive
+    status: SME_engagement_pending
+
+# --- SUCCESS CRITERIA ---
+
+success:
+  convergence: "≥70% of edges driven by operational_instruments above Z=0.85 after 90 days of live data"
+  retrospective_accuracy: "Replay of 2024-12 to 2025-12 storm season matches archived response within published error bars for ≥3 storm events"
+  curiosity_resolved: "≥3 curiosity triggers resolved by partnership or planned-instrument activation"
+  cross_domain: "LEO density model and cislunar transit model share at least one validated coupled edge"
+  schema_completeness: "All 8 source buckets have at least one populated entry (operational + restricted may be partial)"
+
+# --- DEPLOYMENT TARGET ---
+
+deployment:
+  target: edge_or_cloud
+  edge_profile:
+    target_class: jetson-or-equivalent
+    power_budget: 25W
+    model_size_limit: 50MB
+  cloud_profile:
+    target_class: container
+    sync_protocol: https
+    payload_size: variable
+  mcu_profile:
+    target_class: rad-hardened-mcu
+    power_budget: 5W
+    model_size_limit: 200KB
+    scope: "Distilled per-region inference subgraph only"
+  compile_format: onnx
+  fleet_sync:
+    protocol: https
+    interval: 3600
+    payload_size: 10KB
