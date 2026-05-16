@@ -1,429 +1,537 @@
-# nm validate config — cislunar
-# Defines HOW to learn: endpoints, learning parameters, validation steps,
-# success criteria. Endpoints are per-source-bucket and inherit starting
-# certainty + learning-rate class from prior.yaml.
+# nm validate config — cislunar space radiation and particle/field environment
 #
-# Reference integrity: every endpoint's `source:` field must resolve to a
-# providers[].id in cislunar/prior.yaml. Every endpoint's `bucket:` field
-# must resolve to a top-level key under sources: in cislunar/prior.yaml.
-# No external validator enforces this yet — divergence will silently break
-# the learning loop. Audit cross-file references when either file changes.
+# Defines HOW to validate the cislunar prior: endpoints, learning parameters,
+# validation steps, success criteria.
 #
-# Cadence convention: ISO 8601 durations (PT60S, PT5M, PT1H, P1D) for time
-# intervals. Reserved literals for non-time cadences:
-#   static          — does not change in the operational window
-#   event_driven    — updates only when an upstream event fires
-#   archive_pull    — pulled from an archive on demand, not streamed
-#   continuous      — sub-second / streaming, no fixed cadence
+# Reference integrity: every endpoint maps to a target_observable defined
+# in cislunar/prior.yaml. Driver inputs feed edges declared in
+# cislunar/prior.yaml's driver_contributors.
+#
+# Methodological context: cislunar Phase I uses three concurrent direct
+# error signal sources covering 15-17 years of paired observations:
+#   - LRO/CRaTER          (lunar-orbit dose rate, 2009-present, 17 years)
+#   - THEMIS-ARTEMIS P1/P2 (cislunar fields and particles, 2011-present, 15 years)
+#   - Chang'E 4 LND        (lunar surface dose, 2019-present, sparse cross-validation)
+#
+# These are paired with the same L1 driver measurements (DSCOVR, ACE, NOAA
+# SWPC) used by the GEO regime. The data has existed and been used for
+# deterministic operational forecasting and science publication, but has
+# NOT been used for per-edge causal substrate learning with per-voxel UQ.
+# Phase I substrate operation on this paired data is methodologically
+# parallel to the GRACE-FO learning at LEO and produces a Phase I
+# convergence regime, not a measurement-gap regime.
+#
+# Role taxonomy (same as GEO and Mars):
+#   direct_error_signal   — substrate predicts X; sensor measures X directly
+#   proxy_error_signal    — sensor measures related observable via proxy_chain
+#   input                 — driver measurement consumed at runtime
+#   prediction_baseline   — operational model output for context comparison
+#   state_index           — baseline construction / phase tagging; not causal
+#   archived_input        — historical-only data, used retrospectively
+#   phase_i_partnership_target — partnership-contingent Phase I enhancement
+#   phase_ii_forward_marker    — Phase II-only source, scoped here for clarity
 
 version: "0.1"
 schema: nm-validate
 provenance:
-  added: "2026-05-13"
+  added: "2026-05-15"
   added_by: heidi
   evidence:
-    - swwx_2026_lunar_panel
+    - swwx_2026_anomaly_resolution_thread
     - nasa_sbir_spwx_1_s26a_subtopic
-    - space_atlas_grace_fo_convergence_benchmark
+    - crater_lro_pds_archive_continuous
+    - themis_artemis_berkeley_archive_continuous
+    - change4_lnd_science_advances_publication
 
 domain: space-weather
 region_set: cislunar
-entity_scope: earth_to_lunar_surface
+entity_scope: cislunar_three_physics_region_voxels
 model_id: cislunar-v0.1
 
 # --- DATA ENDPOINTS ---
-# Each endpoint maps to one or more nodes in the causal graph and carries a
-# role that governs how its data drives the learning loop:
-#   primary_error_signal — used to compute error = |predicted - actual|
-#   input               — appears in driver vector
-#   context             — modulates state, not directly fit
-#   prediction_baseline — prediction source compared against measurement
-#   static              — slowly-varying configuration / climatology
 
 endpoints:
 
-  # ===== OPERATIONAL — primary error signals and inputs =====
+  # =====================================================================
+  # DIRECT ERROR SIGNALS — PRIMARY
+  # CRaTER + THEMIS-ARTEMIS provide direct paired measurement of cislunar
+  # dose rate and cislunar particle/field state at lunar distance.
+  # Both operating continuously for 15-17 years.
+  # =====================================================================
 
-  - name: swpc_kp_dst
-    bucket: operational_instruments
-    source: noaa_swpc
-    protocol: http
-    endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
-    cadence: PT1M
+  - name: lro_crater_microdosimeter
+    role: direct_error_signal
+    target_observable: cislunar_dose_rate
+    source: lro_crater
+    instrument: "CRaTER microdosimeter"
+    pi: "Nathan Schwadron (University of New Hampshire)"
+    protocol: archive_pull
+    endpoint: "https://pds-ppi.igpp.ucla.edu/data/lro-l-crater-2-edr-rawdata-v1.0/"
+    cadence: PT1H
     format:
-      fields: [timestamp, kp, dst]
-    maps_to: [geomagnetic_storm, dst_index]
-    role: primary_error_signal
+      fields: [time, dose_rate_d1d2, dose_rate_lin, dose_rate_zen]
+      target_field: "dose_rate_d1d2"
+      units: "μGy/hour (converted to water per CRaTER team factor)"
+    coverage: "2009-06 through present, continuous operation"
+    notes: |
+      Primary validation source for cislunar dose rate. Microdosimeter
+      housed within CRaTER instrument; measures TID in silicon at lunar
+      orbit ~50 km altitude. 17 years of continuous data span 1.5+ solar
+      cycles, covering deep solar minimum through current solar max and
+      every major SEP event in that period.
 
-  - name: dscovr_solar_wind
-    bucket: operational_instruments
+  - name: themis_artemis_p1_mag
+    role: direct_error_signal
+    target_observable: cislunar_particle_field
+    target_component: [imf_btot_at_lunar_distance, imf_bz_at_lunar_distance]
+    source: themis_artemis_p1
+    instrument: "FGM (Fluxgate Magnetometer)"
+    pi: "Vassilis Angelopoulos (UCLA)"
+    protocol: archive_pull
+    endpoint: "http://themis.ssl.berkeley.edu/data/themis/thb/l2/fgm/"
+    cadence: PT3S
+    format:
+      fields: [time, bx_gse, by_gse, bz_gse, btot]
+    coverage: "2011 lunar insertion through present, still operational"
+    notes: "Direct IMF measurement at lunar distance; substrate predicts from L1 propagation, ARTEMIS measures ground truth"
+
+  - name: themis_artemis_p2_mag
+    role: direct_error_signal
+    target_observable: cislunar_particle_field
+    target_component: [imf_btot_at_lunar_distance, imf_bz_at_lunar_distance]
+    source: themis_artemis_p2
+    instrument: "FGM (Fluxgate Magnetometer)"
+    pi: "Vassilis Angelopoulos (UCLA)"
+    protocol: archive_pull
+    endpoint: "http://themis.ssl.berkeley.edu/data/themis/thc/l2/fgm/"
+    cadence: PT3S
+    format:
+      fields: [time, bx_gse, by_gse, bz_gse, btot]
+    coverage: "2011 lunar insertion through present, still operational"
+    notes: "Twin-spacecraft pair with P1; together provide spatial gradient measurements in outer_lunar_vicinity region"
+
+  - name: themis_artemis_p1_esa
+    role: direct_error_signal
+    target_observable: cislunar_particle_field
+    target_component: [plasma_electron_density_at_lunar_distance, integral_particle_flux_gt_1mev_at_lunar_distance]
+    source: themis_artemis_p1
+    instrument: "ESA (Electrostatic Analyzer) + SST (Solid State Telescope)"
+    protocol: archive_pull
+    endpoint: "http://themis.ssl.berkeley.edu/data/themis/thb/l2/esa/"
+    cadence: PT3S
+    format:
+      fields: [time, density, velocity, temperature, energy_spectrum]
+    coverage: "2011 lunar insertion through present, still operational"
+    notes: "Direct plasma and energetic particle measurement at lunar distance; substrate validates predictions of cislunar plasma populations against this stream"
+
+  - name: change4_lnd_surface_dose
+    role: direct_error_signal
+    target_observable: lunar_surface_dose
+    source: change4_lnd
+    instrument: "LND (Lunar Lander Neutrons and Dosimetry)"
+    pi: "CNSA mission; published data in peer-reviewed literature"
+    protocol: archive_pull
+    endpoint: "Derived from published Science Advances and follow-on papers (Wimmer-Schweingruber et al.)"
+    endpoint_kind: literature_derived
+    cadence: variable_published_summaries
+    format:
+      fields: [date_range, dose_rate_charged, dose_rate_neutral, total_dose_rate]
+      published_value_jan_2019: "13.2 ± 1 μGy/hour charged + 3.1 ± 0.5 μGy/hour neutral"
+    coverage: "2019-01 through present, sparse publicly-released summaries"
+    notes: |
+      Single-site validation point for lunar surface dose. Cross-validated
+      with CRaTER orbital measurements during Feb 2019 overflight (agreement
+      within instrument uncertainty). Sparse data availability but high
+      value as ground-truth surface measurement.
+
+  # =====================================================================
+  # DRIVER INPUTS (LIVE)
+  # L1 driver measurements consumed at runtime. Same sources as GEO regime;
+  # cross-regime driver consistency is a substrate design property.
+  # =====================================================================
+
+  - name: dscovr_solar_wind_plasma
+    role: input
+    drivers_fed: [solar_wind_dynamic_pressure, solar_wind_speed]
     source: dscovr
+    instrument: "PlasMag / Faraday Cup"
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
     cadence: PT1M
     format:
       fields: [timestamp, density, speed, temperature]
-    maps_to: [solar_wind_dynamic_pressure, solar_wind_speed]
-    role: input
+      derived:
+        - { name: dynamic_pressure, formula: "1.6726e-6 * density * speed^2" }
+    notes: "Same source as GEO regime; cross-regime driver consistency"
 
   - name: dscovr_imf
-    bucket: operational_instruments
+    role: input
+    drivers_fed: [imf_bz]
     source: dscovr
+    instrument: "PlasMag Magnetometer"
     protocol: http
     endpoint: "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"
     cadence: PT1M
     format:
       fields: [timestamp, bx_gsm, by_gsm, bz_gsm, bt]
-    maps_to: [imf_bz_southward]
-    role: input
+      target_field: bz_gsm
+    notes: "L1 IMF; substrate propagates to lunar distance and validates against THEMIS-ARTEMIS"
 
-  - name: goes_xray
-    bucket: operational_instruments
-    source: goes_r_series
+  - name: swpc_sep_alerts
+    role: input
+    drivers_fed: [solar_proton_event]
+    source: noaa_swpc
     protocol: http
-    endpoint: "https://services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json"
-    cadence: PT1M
+    endpoint: "https://services.swpc.noaa.gov/products/alerts.json"
+    cadence: event_driven
     format:
-      fields: [time_tag, flux, energy]
-    maps_to: [solar_xray_flux]
+      fields: [issue_datetime, product_id, message]
+      filter: "Proton event alerts"
+    notes: "SEP onset events; same source as GEO and Mars regimes"
+
+  - name: enlil_cme_at_lunar_distance
     role: input
-
-  - name: goes_proton_flux
-    bucket: operational_instruments
-    source: goes_r_series
-    protocol: http
-    endpoint: "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
-    cadence: PT5M
-    format:
-      fields: [time_tag, energy, flux]
-    maps_to: [solar_proton_event, cislunar_dose_rate]
-    role: primary_error_signal
-    notes: "Proton flux at GEO is best operational proxy for cislunar SEP onset"
-
-  - name: sdo_euv
-    bucket: operational_instruments
-    source: sdo
-    protocol: http
-    endpoint: "https://lasp.colorado.edu/eve/data_access/"
-    cadence: PT1M
-    format:
-      fields: [timestamp, irradiance_bands]
-    maps_to: [solar_xray_flux, thermosphere_density_at_leo]
-    role: input
-
-  - name: ace_swepam_legacy
-    bucket: operational_instruments
-    source: ace
-    protocol: http
-    endpoint: "https://services.swpc.noaa.gov/json/ace/swepam/ace_swepam_1h.json"
-    cadence: PT1H
-    format:
-      fields: [time_tag, dsflag, dens, speed, temperature]
-    maps_to: [solar_wind_speed]
-    role: input
-    notes: "Legacy backup to DSCOVR; cross-validate before trusting"
-
-  # ===== RESEARCH / HISTORICAL — used for prior calibration, not live =====
-
-  - name: van_allen_archive
-    bucket: research_historical
-    source: van_allen_probes
-    protocol: file
-    endpoint: "https://rbsp-ect.newmexicoconsortium.org/data_pub/"
-    endpoint_kind: archive_root
-    cadence: archive_pull
-    format:
-      fields: [timestamp, L_shell, mlt, electron_flux_relativistic]
-    maps_to: [radiation_belt_enhancement]
-    role: prediction_baseline
-    use_phase: prior_calibration_only
-    notes: "Archive root, not a direct API. Integration requires file-selection logic against the directory tree."
-
-  - name: artemis_lunar_solar_wind
-    bucket: research_historical
-    source: artemis
-    protocol: file
-    endpoint: "https://artemis.ssl.berkeley.edu/data/"
-    endpoint_kind: archive_root
-    cadence: archive_pull
-    format:
-      fields: [timestamp, position_lunar, plasma_density, b_vector]
-    maps_to: [lunar_wake_crossing, solar_wind_at_lunar_distance]
-    role: prediction_baseline
-    use_phase: prior_calibration_only
-    notes: "Berkeley URL is an archive directory tree (CDF/level-2 products), not a direct fetch API. Integration requires per-day file selection and CDF parsing logic."
-
-  - name: mms_reconnection_archive
-    bucket: research_historical
-    source: mms
-    protocol: file
-    endpoint_kind: archive_root
-    cadence: archive_pull
-    maps_to: [magnetopause_standoff]
-    role: prediction_baseline
-    use_phase: prior_calibration_only
-    notes: "MMS science data center serves a directory tree; same archive-root caveat as ARTEMIS."
-
-  # ===== PLANNED — schema slots, become active at launch =====
-
-  - name: gdc_thermosphere_winds
-    bucket: planned_instruments
-    source: gdc
-    protocol: TBD
-    endpoint: TBD
-    cadence: TBD
-    maps_to: [thermosphere_density_at_leo]
-    role: input
-    status: schema_only
-
-  - name: imap_solar_wind_l1
-    bucket: planned_instruments
-    source: imap
-    protocol: TBD
-    endpoint: TBD
-    cadence: TBD
-    maps_to: [solar_wind_speed, solar_wind_dynamic_pressure]
-    role: input
-    status: schema_only
-
-  - name: artemis_radiation_ancillary
-    bucket: planned_instruments
-    source: artemis_support_assets
-    protocol: TBD
-    cadence: TBD
-    maps_to: [cislunar_dose_rate]
-    role: primary_error_signal
-    status: schema_only
-
-  # ===== COMMERCIAL — TBD until partnership =====
-
-  - name: spire_gnss_ro
-    bucket: commercial_partnerships
-    source: spire
-    protocol: http
-    endpoint: TBD
-    cadence: TBD
-    maps_to: [thermosphere_density_at_leo, ionospheric_tec]
-    role: input
-    status: partnership_TBD
-
-  - name: muon_space_gnss_ro
-    bucket: commercial_partnerships
-    source: muon_space
-    protocol: TBD
-    cadence: TBD
-    maps_to: [thermosphere_density_at_leo]
-    role: input
-    status: partnership_TBD
-
-  - name: geooptics_neutral_profile
-    bucket: commercial_partnerships
-    source: geooptics
-    protocol: TBD
-    cadence: TBD
-    maps_to: [thermosphere_density_at_leo]
-    role: input
-    status: partnership_TBD
-
-  # ===== THIRD-PARTY RESEARCH — models, low Z high η =====
-
-  - name: ccmc_enlil
-    bucket: third_party_research
-    source: ccmc
+    drivers_fed: [cme_arrival]
+    source: ccmc_enlil
     protocol: http
     endpoint: "https://iswa.gsfc.nasa.gov/iswa_data_tree/model/heliosphere/wsa_enlil/"
     endpoint_kind: archive_root
-    cadence: PT6H
+    cadence: event_driven
     format:
-      fields: [timestamp, sw_speed_predicted, sw_density_predicted, cme_arrival_predicted]
-    maps_to: [cme_arrival, solar_wind_speed]
-    role: prediction_baseline
-    validation_discipline: model_output
-    notes: "Model output, not measurement. Error = |ENLIL_prediction - DSCOVR_actual|. ISWA serves a tree, not an API — file-selection required."
+      fields: [cme_id, lunar_arrival_predicted, shock_strength]
+    notes: "ENLIL cone-CME propagation to lunar distance"
 
-  - name: nairas_dose_rate
-    bucket: third_party_research
-    source: nairas
-    protocol: http
-    endpoint: "https://sol.spacenvironment.net/nairas/"
+  - name: shue_magnetopause_model
+    role: input
+    drivers_fed: [magnetospheric_state]
+    source: derived_from_dscovr
+    instrument: "Shue et al. 1998 magnetopause model"
+    protocol: derived
+    cadence: PT1M
+    format:
+      fields: [time, magnetopause_standoff_distance, magnetotail_flaring]
+    derivation: "Computed from DSCOVR solar wind dynamic pressure and IMF Bz"
+    notes: |
+      Model-derived input for magnetospheric configuration. Drives the
+      magnetospheric_state edge that modulates SEP penetration to inner
+      cislunar voxel.
+
+  # =====================================================================
+  # PHASE I PARTNERSHIP TARGETS (stretch goals)
+  # ESCAPADE during loiter phase — conditional on partnership engagement
+  # with Rob Lillis. Provides direct measurement in cislunar passes during
+  # loiter, distant magnetotail observations, and L1-to-L2 propagation
+  # validation.
+  # =====================================================================
+
+  - name: escapade_loiter_cislunar_passes
+    role: phase_i_partnership_target
+    source: escapade_mission
+    instrument: "EMAG, EESA, EIA, ELP"
+    pi: "Rob Lillis (UC Berkeley SSL) — established SWWX 2026 contact"
+    status_summary: |
+      ESCAPADE launched Nov 2025. Currently loitering at Earth-Sun L2 with
+      kidney-bean orbit that includes near-Moon passage. Instruments
+      operational since Feb 2026. Trans-Mars injection Nov 2026. Loiter-
+      phase cislunar passage data is partnership-accessible.
+    phase_i_value_to_cislunar: |
+      ESCAPADE near-moon-passage provides additional direct measurement
+      points in outer_lunar_vicinity region during loiter. Particularly
+      valuable for the cislunar_ion_composition_at_high_resolution
+      measurement gap (ESCAPADE EIA has composition resolution beyond
+      THEMIS-ARTEMIS ESA).
+    phase_i_value_cross_regime: |
+      L1-to-L2 propagation validation (ESCAPADE vs DSCOVR) and distant-
+      magnetotail observations (constrains GEO regime's pre-midnight
+      growth phase substorm physics).
+    data_access: "SIMPLEx proprietary period; partnership access via PI engagement"
+    engagement_plan: |
+      Phase I Task 3.3 (NASA collaborator engagement) includes Rob Lillis
+      outreach. Substrate offers per-edge UQ framework for analyzing
+      loiter-phase observations as collaboration value.
+
+  # =====================================================================
+  # PHASE II FORWARD MARKERS
+  # =====================================================================
+
+  - name: clps_dosimetry_phase_ii
+    role: phase_ii_forward_marker
+    source: clps_partnership
+    instrument: "Dosimetry payload TBD per partnership"
+    status: pending_clps_provider_engagement
+    candidate_partners: ["Intuitive Machines (Don Kuettel — SWWX 2026 contact)", "Astrobotic", "Firefly Aerospace"]
+    phase_ii_value: |
+      Direct dosimetry during cislunar transit and at multiple lunar surface
+      sites. Closes measurement gaps:
+        - transit_volume_dose_resolution
+        - high_energy_sep_spectrum_resolution
+        - near_surface_vs_orbital_dose_difference
+      With CLPS partnership, cislunar moves from coarse three-voxel
+      convergence to fine-grained voxel resolution driven by curiosity
+      triggers at substructure scales.
+
+  - name: artemis_crew_dosimetry
+    role: phase_ii_forward_marker
+    source: artemis_program
+    instrument: "Crew personal dosimeters; vehicle environment monitors"
+    status: artemis_ii_flight_complete_2026
+    notes: |
+      Artemis II flight occurred earlier in 2026 (per public NASA timeline);
+      crew dosimetry archive expected to release through PDS following
+      mission report publication. Provides single-mission high-cadence
+      dosimetry through cislunar transit volume — directly addresses
+      transit_volume_dose_resolution gap.
+
+# --- STATE INDICES ---
+
+  - name: lunar_phase_compute
+    role: state_index
+    source: derived
+    derivation: "JPL Horizons ephemeris; Earth-Moon-Sun geometric phase"
     cadence: PT1H
     format:
-      fields: [timestamp, altitude, latitude, longitude, dose_rate]
-    maps_to: [cislunar_dose_rate]
+      fields: [time, lunar_phase_angle, moon_position_relative_to_magnetotail]
+    use_phase: [voxel_selection, baseline_construction]
+
+  - name: solar_cycle_phase
+    role: state_index
+    source: noaa_swpc
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/products/solar-cycle/observed-solar-cycle-indices.json"
+    cadence: P1M
+    format:
+      fields: [time, ssn_obs, ssn_predicted, f107]
+    use_phase: [baseline_construction]
+    notes: "GCR modulation baseline; CRaTER record spans 1.5+ solar cycles for direct learning"
+
+  - name: swpc_kp
+    role: state_index
+    source: noaa_swpc
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+    cadence: PT3H
+    format:
+      fields: [time_tag, kp]
+    use_phase: [storm_phase_tagging]
+
+  - name: swpc_dst
+    role: state_index
+    source: noaa_swpc
+    protocol: http
+    endpoint: "https://services.swpc.noaa.gov/products/kyoto-dst.json"
+    cadence: PT1H
+    format:
+      fields: [time_tag, dst]
+    use_phase: [baseline_construction, storm_phase_tagging]
+
+# --- PREDICTION BASELINES ---
+
+  - name: nairas_lunar_radiation
     role: prediction_baseline
-    validation_discipline: model_output
-    notes: "Aviation-altitude model. Extrapolation to cislunar carries large uncertainty"
+    target_observable: [cislunar_dose_rate, lunar_surface_dose]
+    source: nairas_lunar_module
+    protocol: http
+    endpoint: "https://sol.spdf.gsfc.nasa.gov/nairas/"
+    endpoint_kind: archive_root
+    cadence: PT6H
+    notes: "NAIRAS operational radiation model; comparison-only baseline"
 
   - name: ae9_ap9_climatology
-    bucket: third_party_research
+    role: prediction_baseline
+    target_observable: [cislunar_dose_rate, cislunar_particle_field]
     source: irene_ae9_ap9
     protocol: file
     cadence: static
-    format:
-      fields: [L_shell, energy, flux_percentile]
-    maps_to: [radiation_belt_enhancement]
-    role: static
-    validation_discipline: statistical_climatology
-
-  # ===== MISSION TELEMETRY — schema only, gated by ICDs =====
-
-  - name: clps_vehicle_dosimeter
-    bucket: mission_telemetry
-    source: clps_generic
-    protocol: TBD
-    endpoint: TBD
-    cadence: TBD
-    maps_to: [cislunar_dose_rate, vehicle_charging_environment]
-    role: primary_error_signal
-    status: ICD_pending
-    sme_contact: "CLPS provider SME — engagement slot (candidate: Don Kuettel, Intuitive Machines)"
-
-  - name: artemis_crew_dosimetry
-    bucket: mission_telemetry
-    source: artemis_vehicle_telemetry
-    protocol: TBD
-    cadence: TBD
-    maps_to: [cislunar_dose_rate]
-    role: primary_error_signal
-    status: gated_phased
-
-  # ===== SME PRIORS — natural-language documents =====
-
-  - name: wamipe_prior_doc
-    bucket: sme_knowledge
-    source: sme_tzuwei_wamipe
-    protocol: file
-    endpoint: "./priors/wamipe_prior.md"
-    cadence: event_driven
-    maps_to: [thermosphere_density_at_leo, ionospheric_tec]
-    role: input
-    status: SME_engagement_pending
-    extraction: llm_to_hypotheses
-
-  # ===== RESTRICTED — schema shape only =====
-
-  - name: itar_slot_endpoint
-    bucket: restricted
-    source: itar_slot
-    protocol: null
-    endpoint: null
-    cadence: null
-    maps_to: []
-    role: null
-    status: content_blank
-    access: itar_gated
+    notes: "Climatological baselines for trapped radiation belt component in inner_magnetospheric voxel"
 
 # --- LEARNING PARAMETERS ---
 
 learning:
-  # ARCHITECTURAL COMMITMENT (read this before reading the numbers below):
-  #
-  # Each edge in the causal graph carries its own certainty Z and its own
-  # dynamic learning rate η(Z, residual). η is computed PER CYCLE from the
-  # edge's current certainty and the observed prediction error — it is not
-  # a property of the sensor, the bucket, or the provider. The sensor
-  # contributes a measurement; the edge being updated owns the rate.
-  #
-  # What the source/bucket determines is the PRIOR for the edges it touches:
-  #   1. starting_certainty (Z_0) — set in prior.yaml per bucket
-  #   2. the bounds of the η(Z, residual) sigmoid — set here per bucket
-  #
-  # The sigmoid is bounded between eta_floor and eta_ceiling. Within those
-  # bounds, η rises when Z is low or residuals are large (learn fast) and
-  # falls when Z is high and residuals are small (resist noise). The bounds
-  # are bucket-level configuration; the rate inside the bounds is per-edge,
-  # per-cycle, and dynamic.
-  #
-  # This is the architectural commitment that distinguishes the framework
-  # from a Kalman-shaped weighted-average filter. Static per-source rates
-  # would collapse it back into one. Do not let downstream reviewers (or
-  # later edits to this file) compress the dynamic rate into a constant.
+  # Same architectural commitment as GEO and Mars: per-edge dynamic η(Z, ε),
+  # single global sigmoid, log-scale for SEP-driven edges per scale: field.
+
   rate_function: eta_z_residual
-  formula: "η(Z, ε) ∈ [eta_floor, eta_ceiling]; rises with |ε| and with (1 - Z); falls with Z"
+  formula: "η(Z, ε) ∈ [eta_floor, eta_ceiling]; rises with |ε| and (1 - Z); falls with Z"
   global_sigmoid_bounds:
     eta_floor: 0.10
     eta_ceiling: 0.90
-  # Per-bucket bounds INSIDE the global sigmoid. These narrow the band the
-  # dynamic rate is allowed to move within, based on prior trust in the
-  # source. Operational sources get a tight band high in Z; third-party
-  # model outputs get a wide band that allows η to climb when the model
-  # disagrees with measurement. RECONCILE against the shipping
-  # computeLearningRate path in ~/space-waze/lib/dissipative-learning.js
-  # before external distribution — the magnitudes below are directional
-  # placeholders; the structure (per-bucket bounds, not per-bucket rates)
-  # is the spec.
-  eta_bounds_by_bucket:
-    operational_instruments:   { floor: 0.10, ceiling: 0.30 }   # RECONCILE
-    research_historical:       { floor: 0.10, ceiling: 0.30 }   # RECONCILE
-    planned_instruments:       { floor: 0.15, ceiling: 0.60 }   # RECONCILE
-    commercial_partnerships:   { floor: 0.15, ceiling: 0.50 }   # RECONCILE
-    third_party_research:      { floor: 0.20, ceiling: 0.80 }   # RECONCILE
-    mission_telemetry:         { floor: 0.15, ceiling: 0.50 }   # RECONCILE
-    sme_knowledge:             { floor: 0.20, ceiling: 0.80 }   # RECONCILE
-    restricted:                { floor: 0.0,  ceiling: 0.0  }
+
+  scale_handling:
+    linear_edges: "multiplier_delta = η · attributed_error · 0.1"
+    log_edges:    "log_multiplier_delta = η · attributed_error_log · 0.1"
+
+  attribution: activity_weighted
+  attribution_min_weight: 0.10
+
+  baseline_construction:
+    method: quiet_time_with_gcr_modulation
+    quiet_time_criteria:
+      dst_threshold: -30
+      bz_threshold: -5
+      no_sep_event_within_hours: 48
+      lunar_phase_aware: true
+    seasonal_baseline:
+      method: per_voxel_per_lunar_phase_quiet_median
+      min_quiet_samples_per_voxel: 30
+    fallback: full_archive_median_per_voxel
+
   convergence_threshold: 0.85
   curiosity_threshold: 0.70
-  min_observations: 20
+  min_observations_per_edge: 20
   max_cycles_per_session: 100
+
   feedback_modes:
     - auto_update
     - weighted_update
     - flag_for_review
     - stable
+
   cross_domain_link:
+    geo_validate: "../geo/validate.yaml"
+    mars_validate: "../mars/validate.yaml"
     leo_validate: "../leo/validate.yaml"
-    note: "LEO density updates inform cislunar transit-phase priors"
+    note: |
+      Cislunar shares all four regimes' SEP source mechanism and L1
+      driver measurements. High-certainty edges from GEO regime
+      (magnetospheric configuration effects, SEP-driven particle flux
+      response) transfer to cislunar inner_magnetospheric voxel with
+      adjusted geometry. Cross-regime transfer is a Phase I success
+      criterion.
 
 # --- VALIDATION STRATEGY ---
+# Sequential pattern: archive-grounded edge learning first (analogous to
+# Mars MAVEN-archive approach), then live cycle validation, then
+# partnership-contingent enhancements.
 
 validation_steps:
 
   - name: baseline_quiet_period
-    description: "Collect 30 days of all operational feeds during a geomagnetically quiet interval (Kp < 3)"
-    target: "Establish baseline correlations and noise envelopes per voxel"
+    description: "Collect quiet-time CRaTER and ARTEMIS measurements per voxel × lunar phase combination"
+    target: "Establish per-voxel quiet-time baselines for dose rate and particle/field state"
     duration: 30d
+    requires: [lro_crater_microdosimeter, themis_artemis_p1_mag, themis_artemis_p2_mag, themis_artemis_p1_esa, swpc_dst, dscovr_imf, solar_cycle_phase]
 
-  - name: retrospective_storm_replay
-    description: "Replay 2024–2025 storm events; compare predicted vs measured cislunar particle flux and dose-rate proxies"
-    target: "Verify operational pipeline reproduces known storm response"
-    requires: [van_allen_archive, mms_reconnection_archive, goes_proton_flux]
-    duration: 14d
+  - name: paired_archive_edge_learning
+    description: |
+      Learn physics edges using paired CRaTER + ARTEMIS direct measurements
+      (2011-present overlap when both operational) with simultaneous L1
+      driver state (DSCOVR + ACE). Substrate consumes the 15-year paired
+      archive analogously to GRACE-FO LEO learning and MAVEN-archive Mars
+      learning: direct upstream + direct downstream, paired across years.
+    target: |
+      Converge driver → observable edges using existing direct measurement
+      paired across the longest available baseline (~15 years of overlap).
+      This is the substrate's primary edge-learning phase for cislunar.
+    requires:
+      - lro_crater_microdosimeter
+      - themis_artemis_p1_mag
+      - themis_artemis_p2_mag
+      - themis_artemis_p1_esa
+      - dscovr_solar_wind_plasma
+      - dscovr_imf
+      - swpc_sep_alerts
+    duration: 30d
+    sep_event_target_count: 25
+    notes: |
+      15 years of overlap (2011-present) covers 1.5 solar cycles and
+      every major SEP event in that period including 2012, 2017, 2021,
+      2022, 2024. This is more event coverage than Mars (where MAVEN
+      archive starts 2014) and comparable to GEO (where GOES-R series
+      starts ~2017 for current generation).
 
-  - name: model_vs_measurement
-    description: "Continuously compare ENLIL and NAIRAS predictions vs DSCOVR / GOES truth"
-    target: "Quantify model error envelopes; tune third_party_research bucket η"
-    duration: continuous
+  - name: live_validation_cycle
+    description: "Run substrate on live CRaTER + ARTEMIS + L1 data; record residuals and curiosity triggers"
+    target: "Demonstrate continuous substrate operation; surface gaps requiring Phase II resolution"
+    requires:
+      - lro_crater_microdosimeter
+      - themis_artemis_p1_mag
+      - themis_artemis_p2_mag
+      - themis_artemis_p1_esa
+      - dscovr_solar_wind_plasma
+      - dscovr_imf
+      - swpc_sep_alerts
+      - enlil_cme_at_lunar_distance
+    duration: continuous_during_phase_i
 
-  - name: cislunar_transit_phase
-    description: "When CLPS or Artemis telemetry becomes available, validate dose-rate prediction during Earth-to-Moon transit"
-    target: "Demonstrate prediction accuracy across magnetosphere → cislunar transition"
-    requires: [clps_vehicle_dosimeter]
-    duration: per_mission
-    status: dependent_on_mission_engagement
+  - name: surface_dose_cross_validation
+    description: "Cross-validate cislunar orbital dose predictions against Chang'E 4 LND surface measurements where temporal overlap exists"
+    target: "Establish orbit-to-surface dose relationship; identify surface vs orbit residuals"
+    requires:
+      - lro_crater_microdosimeter
+      - change4_lnd_surface_dose
+    duration: rolling
+    notes: "Sparse cross-validation point but high-value; surface dose prediction accuracy informs Phase II CLPS requirements"
 
-  - name: sme_prior_extraction
-    description: "Parse WAM-IPE and other SME documents; verify extracted hypotheses match expert intent"
-    target: "Validate LLM-extraction fidelity for natural-language priors"
-    requires: [wamipe_prior_doc]
-    duration: as_documents_arrive
-    status: SME_engagement_pending
+  - name: escapade_partnership_data_integration
+    description: |
+      Conditional on partnership engagement: integrate ESCAPADE loiter-phase
+      cislunar-passage data for additional outer_lunar_vicinity coverage
+      and ion composition resolution.
+    target: "Reduce cislunar_ion_composition_at_high_resolution gap; provide spatial gradient at lunar distance during ESCAPADE-ARTEMIS conjunctions"
+    requires: [escapade_loiter_cislunar_passes]
+    duration: rolling
+    status: partnership_engagement_pending
+
+  - name: cross_regime_transfer
+    description: "Identify high-certainty edges from GEO regime that transfer to cislunar inner_magnetospheric voxel with geometry adjustment"
+    target: "Demonstrate fleet learning across regime instances"
+    requires: ["../geo/validate.yaml"]
+    duration: rolling
+
+  - name: sme_engagement
+    description: "Engage cislunar radiation environment SMEs on surfaced curiosity triggers and measurement gap specifications"
+    target: "Validate substrate-surfaced research priorities and Phase II measurement requirements"
+    duration: rolling
+    status: engagement_pending
+    candidate_engagement:
+      - "Nathan Schwadron (UNH, CRaTER PI)"
+      - "Vassilis Angelopoulos (UCLA, ARTEMIS PI)"
+      - "Rob Lillis (UCB SSL, ESCAPADE PI)"
+      - "Tzu-Wei Fang (NOAA SWPC, SWWX lunar panel)"
 
 # --- SUCCESS CRITERIA ---
 
 success:
-  convergence: "≥70% of edges driven by operational_instruments above Z=0.85 after 90 days of live data"
+  edge_convergence_via_paired_archive: |
+    ≥70% of edges with target_observable ∈ {cislunar_dose_rate,
+    cislunar_particle_field, lunar_surface_dose} converge above Z=0.85
+    when learned against paired CRaTER + ARTEMIS direct measurements
+    plus L1 driver state over the 2011-present overlap period.
+    Structurally analogous to GRACE-FO LEO and Mars MAVEN-archive
+    convergence: direct upstream + direct downstream, paired across years.
+
   convergence_basis: |
-    The Z=0.85 threshold is defensible from prior NM benchmark work:
-    space_atlas_grace_fo_convergence_benchmark recorded >91% per-edge certainty
-    on 97% of edges and >80% per-edge certainty on 100% of edges using a single
-    GPS-drag-residual error signal on a structurally similar operational pipeline
-    (LEO thermosphere density via GRACE-FO). The 0.85 cislunar target sits inside
-    that demonstrated envelope. See ../leo/ and pod event
-    `space_atlas_grace_fo_convergence_benchmark` (Z=0.97).
-  retrospective_accuracy: "Replay of 2024-12 to 2025-12 storm season matches archived response within published error bars for ≥3 storm events"
-  curiosity_resolved: "≥3 curiosity triggers resolved by partnership or planned-instrument activation"
-  cross_domain: "LEO density model and cislunar transit model share at least one validated coupled edge"
-  schema_completeness: "All 8 source buckets have at least one populated entry (operational + restricted may be partial)"
+    The Z=0.85 threshold is consistent with GRACE-FO LEO benchmark
+    (>91% on 97% of edges, >80% on 100%), GEO targets, and Mars
+    archive-grounded targets. Cislunar has the longest paired-archive
+    baseline of any Phase I regime: 15 years of CRaTER + ARTEMIS overlap
+    (2011-present) covering 1.5 solar cycles.
+
+  retrospective_accuracy: |
+    Replay of ≥25 SEP events from 2011-2026 archive period reproduces
+    CRaTER-measured dose enhancement and ARTEMIS-measured particle
+    enhancement within published error bars for at least 50% of events.
+    Residuals on remaining events surface as curiosity triggers.
+
+  measurement_gap_specification: |
+    Phase I final report includes quantified specifications for the
+    four declared measurement_gaps:
+      - transit_volume_dose_resolution
+      - high_energy_sep_spectrum_resolution
+      - near_surface_vs_orbital_dose_difference
+      - cislunar_ion_composition_at_high_resolution
+    Each specification includes required cadence, energy range, spatial
+    coverage, and which substrate edges the measurement would enable
+    closure on.
+
+  curiosity_resolved: "≥3 curiosity triggers resolved via SME engagement or driver hypothesis revision"
+
+  cross_regime: "At least one validated high-certainty edge transfers from GEO inner-magnetospheric physics to cislunar inner_magnetospheric voxel"
+
+  partnership_contingent_outcomes:
+    description: "Conditional on ESCAPADE partnership engagement"
+    additional_coverage: "Sparse direct measurement in outer_lunar_vicinity during ESCAPADE loiter passes; ion composition data not available from ARTEMIS"
+    cross_regime_benefit: "L1-to-L2 propagation validation informs Mars regime; distant magnetotail observation informs GEO regime"
 
 # --- DEPLOYMENT TARGET ---
 
@@ -441,7 +549,7 @@ deployment:
     target_class: rad-hardened-mcu
     power_budget: 5W
     model_size_limit: 200KB
-    scope: "Distilled per-region inference subgraph only"
+    scope: "Distilled per-voxel inference subgraph only — relevant for future CLPS payload integration"
   compile_format: onnx
   fleet_sync:
     protocol: https

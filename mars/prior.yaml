@@ -1,0 +1,318 @@
+# nm prior config — Mars surface radiation environment
+#
+# Predicted observables (validated in mars/validate.yaml via MSL/Curiosity
+# RAD as direct error signal):
+#   - surface_dose_rate         — total ionizing dose rate at the surface
+#                                  (operational relevance: TID budgeting,
+#                                   future crew radiation exposure)
+#   - integral_charged_particle_flux  — high-energy charged particle flux at
+#                                  the surface (operational relevance: SEE
+#                                  risk for surface assets, biological dose
+#                                  spectrum estimation)
+#
+# Drivers form edges to predicted observables with bounded-low Z_0 by
+# epistemic kind. Sensor channels (MSL RAD, MAVEN archive, Mars Odyssey,
+# propagated heliospheric state) live in validate.yaml.
+#
+# Driver-measurement context: MAVEN lost contact December 2025 and as of
+# March 2026 is "likely unrecoverable" per NASA. Phase I therefore uses
+# propagated heliospheric state from L1 measurements as live driver input,
+# with the 11-year MAVEN archive (2014-2025) supplying retrospective driver
+# state for storm-replay validation cycles. ESCAPADE arrives at Mars
+# September 2027 and becomes the Phase II live-driver replacement.
+#
+# Scale convention:
+#   linear  — multiplier learned in linear space (default)
+#   log     — multiplier learned in log space (SEP-driven edges spanning >2 OOM)
+
+version: "0.1"
+schema: nm-prior
+provenance:
+  added: "2026-05-15"
+  added_by: heidi
+  evidence:
+    - swwx_2026_anomaly_resolution_thread
+    - nasa_sbir_spwx_1_s26a_subtopic
+    - grace_fo_precedent_pipeline
+    - geo_prior_pattern   # mars composed on geo template after geo regime stabilized
+    - msl_rad_continuous_operation_2012_present
+
+domain: space-weather
+entity: mars-surface-radiation-environment
+scope: per-season-x-observable
+
+# --- REGIONS ---
+# Mars seasonal decomposition by solar longitude (Ls). Four bins of
+# 90 degrees each. Mars year is ~687 Earth days (~1.88 Earth years), so
+# a 6-month Phase I window covers roughly a quarter of one Mars season
+# live, but retrospective MSL RAD archive (2012-present) provides multiple
+# complete seasonal cycles for validation.
+#
+# Why seasonal voxelization (vs. local time, vs. orbital phase):
+# Mars atmospheric column density — the dominant non-event driver of
+# surface dose rate variation — varies primarily with Ls (perihelion vs.
+# aphelion atmospheric expansion, seasonal dust loading, polar CO2 cycle).
+# Local-time variation at Curiosity's location is small compared to
+# seasonal variation. Driver behavior fundamentally differs across Ls bins.
+
+regions:
+
+  - id: ls_0_90
+    ls_range_degrees: [0, 90]
+    season: "Northern spring / Southern fall"
+    operational_significance: |
+      Mars aphelion approach; cool atmosphere with relatively high column
+      density; dust activity rising in southern hemisphere; SEP arrivals
+      modulated by Mars-Sun magnetic connection at this orbital phase.
+
+  - id: ls_90_180
+    ls_range_degrees: [90, 180]
+    season: "Northern summer / Southern winter"
+    operational_significance: |
+      Mars near aphelion; coldest period; lowest baseline GCR-driven dose
+      due to atmospheric expansion; quiescent dust activity; lowest SEP
+      flux statistically.
+
+  - id: ls_180_270
+    ls_range_degrees: [180, 270]
+    season: "Northern fall / Southern spring"
+    operational_significance: |
+      Mars perihelion approach; dust storm season begins (Ls 180-270 is
+      the climatologically active dust period); atmospheric column density
+      becomes highly variable; SEP transport efficiency increases as Mars
+      approaches the Sun.
+
+  - id: ls_270_360
+    ls_range_degrees: [270, 360]
+    season: "Northern winter / Southern summer (perihelion)"
+    operational_significance: |
+      Mars at perihelion; closest approach to Sun; peak SEP exposure
+      probability; strongest dust storm activity (including potential
+      global dust events); highest variability in surface dose rate.
+
+# --- PREDICTED OBSERVABLES ---
+# What the substrate predicts at each season. Each is validated against a
+# direct error signal in mars/validate.yaml via MSL/Curiosity RAD.
+
+predicted_observables:
+
+  - id: surface_dose_rate
+    name: "Mars surface ionizing radiation dose rate"
+    units: "μGy/day"
+    operational_relevance: tid_budgeting_and_crew_exposure
+    risk_category: cumulative_radiation_dose
+    cadence_target: PT1H
+    scale: linear
+    notes: |
+      Baseline ~200 μGy/day (GCR-dominated quiet time, MSL RAD measurement);
+      enhanced 5-50x during major SEP events. Linear scale is adequate for
+      the dominant variation range; SEP-driven enhancement edges use log
+      scale per the scale: field on those edges.
+
+  - id: integral_charged_particle_flux
+    name: "Mars surface integral charged particle flux (>10 MeV/nuc)"
+    units: "particles/(cm^2·s·sr)"
+    operational_relevance: see_risk_and_spectrum_estimation
+    risk_category: single_event_effects_and_biological_dose
+    cadence_target: PT1H
+    scale: log
+    notes: |
+      Quiet-time GCR background + episodic SEP enhancement. SEP events
+      drive 2-3 OOM enhancement above background, requiring log-scale
+      learning. RAD-E measures charged-particle spectra; substrate
+      predicts integral above 10 MeV/nuc as a single scalar observable.
+
+# --- DRIVER CONTRIBUTORS ---
+# Drivers form edges to predicted observables. Bucketed by epistemic kind
+# of the contributing source. Each edge declares target_observable,
+# initial_multiplier_bound, response_lag_hours, mechanism, and scale.
+
+driver_contributors:
+
+  # --------------------------------------------------------------
+  # Operational model documentation (Z_0 = 0.40)
+  # Edges from operational space weather model documentation that
+  # cover Mars-relevant heliospheric and SEP propagation.
+  # --------------------------------------------------------------
+  operational_model_documentation:
+    starting_certainty: 0.40
+    description: "Edges from operational model documentation — well-characterized but model-derived priors"
+    drivers:
+
+      - id: solar_proton_event_at_mars
+        name: SEP arrival at Mars
+        source_documentation: ["HESPERIA REleASE (adapted)", "UMASEP", "ENLIL-with-cone"]
+        contributes_to:
+          - target_observable: surface_dose_rate
+            initial_multiplier_bound: [1.0, 50.0]
+            response_lag_hours: [0, 24]
+            scale: log
+            mechanism: "SEP arrival at Mars drives 5-50x surface dose enhancement; arrival timing depends on Mars-Sun magnetic connection longitude (different from Earth)"
+          - target_observable: integral_charged_particle_flux
+            initial_multiplier_bound: [1.0, 1000.0]
+            response_lag_hours: [0, 24]
+            scale: log
+            mechanism: "SEP arrival drives 2-3 OOM enhancement in surface charged particle flux at Mars"
+
+      - id: cme_shock_at_mars
+        name: CME shock arrival at Mars heliocentric distance
+        source_documentation: ["ENLIL-with-cone", "OSPREI extended to 1.52 AU"]
+        contributes_to:
+          - target_observable: surface_dose_rate
+            initial_multiplier_bound: [1.0, 5.0]
+            response_lag_hours: [0, 12]
+            scale: linear
+            mechanism: "Shock arrival modulates heliospheric transport of energetic particles to Mars; smaller effect than direct SEP arrival"
+
+  # --------------------------------------------------------------
+  # Peer-reviewed literature (Z_0 = 0.35)
+  # Edges from MSL RAD analysis literature and Mars heliospheric
+  # physics literature.
+  # --------------------------------------------------------------
+  literature:
+    starting_certainty: 0.35
+    description: "Edges from peer-reviewed Mars radiation environment literature"
+    drivers:
+
+      - id: atmospheric_column_density
+        name: Mars atmospheric column density above surface
+        contributes_to:
+          - target_observable: surface_dose_rate
+            initial_multiplier_bound: [0.6, 1.4]
+            response_lag_hours: [0, 6]
+            scale: linear
+            mechanism: "Higher column density attenuates surface dose; inverse relationship documented across Mars year via MSL RAD"
+          - target_observable: integral_charged_particle_flux
+            initial_multiplier_bound: [0.5, 1.5]
+            response_lag_hours: [0, 6]
+            scale: linear
+            mechanism: "Atmospheric shielding modulates low-energy cutoff of charged particle spectrum reaching surface"
+
+      - id: dust_storm_activity
+        name: Mars regional or global dust storm activity
+        contributes_to:
+          - target_observable: surface_dose_rate
+            initial_multiplier_bound: [0.7, 1.3]
+            response_lag_hours: [6, 72]
+            scale: linear
+            mechanism: "Dust storms increase atmospheric column density (heating-induced expansion plus dust mass); transient surface dose reduction; mechanism is indirect via atmospheric_column_density"
+
+      - id: heliospheric_sw_speed_at_mars
+        name: solar wind speed propagated to Mars heliocentric distance
+        contributes_to:
+          - target_observable: integral_charged_particle_flux
+            initial_multiplier_bound: [0.8, 1.5]
+            response_lag_hours: [24, 96]
+            scale: linear
+            mechanism: "High-speed solar wind streams modulate GCR access to Mars and influence SEP transport efficiency; weaker direct effect than at Earth due to Mars-distance heliospheric structure"
+
+  # --------------------------------------------------------------
+  # SME knowledge (Z_0 = 0.50)
+  # Direct expert priors via documents and engagement.
+  # --------------------------------------------------------------
+  sme_knowledge:
+    starting_certainty: 0.50
+    description: "Expert priors — populated via Phase I SME engagement"
+    sme_contact_slot: "Mars radiation / heliospheric physics SME — engagement pending"
+    candidate_contacts:
+      - "Rob Lillis (UC Berkeley SSL, ESCAPADE PI, Mars heliospheric physics) — established at SWWX 2026"
+      - "Don Hassler (SwRI, MSL RAD Principal Investigator)"
+      - "Shannon Curry (CU Boulder LASP, MAVEN PI)"
+    drivers: []
+
+  # --------------------------------------------------------------
+  # Foundation-model training corpus (Z_0 = 0.30)
+  # Edges proposed by orchestration LLM without direct literature
+  # or model-doc support. Held at lowest Z_0 until validation.
+  # --------------------------------------------------------------
+  foundation_model_training:
+    starting_certainty: 0.30
+    description: "Edges hypothesized from foundation-model corpus without direct literature or doc support"
+    drivers: []
+
+# --- STATE INDICES ---
+# Slowly-varying or derived state variables used for baseline construction
+# and storm-phase tagging. NOT causal drivers.
+
+state_indices:
+
+  - id: gcr_modulation_level
+    name: Galactic cosmic ray modulation level
+    derivation: "Derived from solar cycle phase; inverse to solar activity (high solar activity → reduced GCR access; low solar activity → enhanced GCR)"
+    correlates_with:
+      - surface_dose_rate              # GCR is the dominant quiet-time contributor
+      - integral_charged_particle_flux # GCR sets the quiet-time floor
+    use_phase: [baseline_construction]
+    notes: |
+      Over a 6-month Phase I window, GCR modulation is essentially a
+      slowly-varying baseline state rather than an actively-learning driver.
+      Used to set the quiet-time dose floor against which event-driven
+      enhancements are learned.
+
+  - id: ls_orbital_phase
+    name: Mars solar longitude
+    derivation: "Mars orbital position; tracked continuously, used to identify season-region for voxel selection"
+    correlates_with:
+      - surface_dose_rate              # atmosphere varies with Ls
+      - integral_charged_particle_flux # via atmospheric column density
+    use_phase: [voxel_selection, baseline_construction]
+    notes: |
+      Ls is the voxel coordinate (regions are defined by Ls range), not a
+      driver. Explicitly noted here to prevent miscategorization as a
+      causal edge during prior composition.
+
+# --- INTERACTIONS ---
+# Multi-driver interactions the substrate should attend to during
+# activity-weighted attribution.
+
+interactions:
+
+  - factors: [solar_proton_event_at_mars, mars_magnetic_connection_longitude]
+    type: connection_dependent_arrival
+    note: |
+      SEP arrival timing at Mars depends on heliospheric magnetic connection
+      between Mars and the SEP source region. Two SEP events of similar
+      magnitude can produce very different Mars dose responses depending on
+      Mars-Sun-source geometry. Mars-Earth magnetic connection at the time
+      of event onset is a critical interaction variable.
+
+  - factors: [atmospheric_column_density, dust_storm_activity]
+    type: indirect_pathway
+    note: |
+      Dust storms modify surface dose rate primarily through column density
+      modulation, not through direct radiation interaction. The substrate
+      should learn the dust_storm → column_density relationship as the
+      causal chain rather than treating dust_storm → dose_rate as a
+      direct edge.
+
+  - factors: [gcr_modulation_level, solar_proton_event_at_mars]
+    type: anticorrelated_baseline_event_pairing
+    note: |
+      SEP events are more frequent during solar maximum; GCR modulation
+      suppresses baseline GCR dose during the same period. Net effect on
+      annual dose budget is non-monotonic in solar cycle phase.
+
+# --- KNOWN GAPS ---
+# Operational gaps the prior recognizes at composition time.
+
+known_gaps:
+  - "Live solar wind state at Mars (MAVEN lost contact Dec 2025; ESCAPADE arrives Sep 2027)"
+  - "Local atmospheric column density at Curiosity site at high temporal cadence (MSL meteorology gives surface pressure but not full column)"
+  - "Dust storm onset prediction lead time (currently retrospective)"
+  - "Mars-Sun magnetic connection longitude prediction (depends on solar wind speed propagation accuracy at Mars distance)"
+  - "Secondary neutron contribution to surface dose (RAD measures dose; neutron spectrum is harder to disentangle from charged particle component)"
+
+# --- BUILD OPTIONS ---
+
+build:
+  initial_certainty: from_source
+  curiosity_threshold: 0.70
+  max_nodes: 150
+  target_device: edge_or_cloud
+  attribution: activity_weighted
+  baseline_construction: gcr_modulation_baseline_plus_seasonal_atmosphere
+  cross_domain_links:
+    - "../leo/prior.yaml"      # LEO precedent; shared SEP source mechanism
+    - "../geo/prior.yaml"      # GEO regime; shared SEP source mechanism;
+                                # Mars SEP arrival is propagated from same
+                                # source events that drive GEO proton flux

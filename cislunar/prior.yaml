@@ -1,484 +1,419 @@
-# nm prior config — cislunar space weather
-# The prior defines WHAT to learn: system model, causal hypotheses, and sources.
-# Sources are tiered by access landscape — operational data starts with higher
-# certainty (Z) and lower learning rate (η); third-party research and SME priors
-# start lower-Z, higher-η. Restricted slots are schema-shaped, content-blank.
+# nm prior config — cislunar space radiation and particle/field environment
 #
-# Cadence convention: ISO 8601 durations (PT60S, PT5M, PT6H, P1D) for time
-# intervals. Reserved literals for non-time cadences:
-#   static          — does not change in the operational window
-#   event_driven    — updates only when an upstream event fires
-#   archive_pull    — pulled from an archive on demand, not streamed
-#   continuous      — sub-second / streaming, no fixed cadence
-# Same convention applies in validate.yaml.
+# Predicted observables (validated in cislunar/validate.yaml via direct
+# error signals from existing operational and archive sources):
+#
+#   - cislunar_dose_rate         — total ionizing dose rate at lunar orbit
+#                                   (operational relevance: Artemis crew dose,
+#                                    CLPS lander hardware TID budgeting)
+#   - cislunar_particle_field    — IMF and energetic particle environment
+#                                   in cislunar space (operational relevance:
+#                                    SEE risk during transit, surface charging,
+#                                    upstream driver state for substrate)
+#   - lunar_surface_dose         — surface dose rate at lunar locations
+#                                   (operational relevance: future crew
+#                                    surface operations; currently validated
+#                                    only at Chang'E 4 site)
+#
+# Methodological note: cislunar is a CONVERGENCE regime in Phase I, not a
+# measurement-gap regime. CRaTER on LRO has measured lunar-orbit dose rate
+# continuously since June 2009 (~17 years). THEMIS-ARTEMIS P1 and P2 have
+# measured cislunar fields and particles continuously since 2011 (~15 years,
+# both still operational). Chang'E 4 LND has measured lunar surface dose
+# since January 2019. All sources are publicly archived and paired with the
+# same L1 driver measurements (DSCOVR, ACE, NOAA SWPC) used by the GEO and
+# LEO regimes. The substrate's Phase I contribution is the causal-learning
+# use of this paired data, which has not been done for per-edge UQ
+# previously despite the data's existence.
+#
+# Remaining genuine measurement gaps (addressed in Phase II via CLPS
+# partnership) are documented in the measurement_gaps block at the end —
+# specific unresolved questions, not full-regime absence.
+#
+# Voxel granularity is provisional. Three physics-region voxels by
+# magnetospheric shielding regime are the coarsest decomposition known
+# physics supports. Subdivision criteria are declared per region; finer
+# voxelization is a curiosity-trigger-driven evolution as direct
+# measurements drive convergence.
+#
+# Scale convention:
+#   linear  — multiplier learned in linear space (default)
+#   log     — multiplier learned in log space (SEP-driven edges >2 OOM)
 
 version: "0.1"
 schema: nm-prior
 provenance:
-  added: "2026-05-13"
+  added: "2026-05-15"
   added_by: heidi
   evidence:
-    - swwx_2026_lunar_panel
+    - swwx_2026_anomaly_resolution_thread
     - nasa_sbir_spwx_1_s26a_subtopic
-    - kuettel_lunar_pnt_resilience_slides
+    - grace_fo_precedent_pipeline
+    - geo_prior_pattern
+    - mars_prior_pattern
+    - crater_lro_continuous_operation_2009_present
+    - themis_artemis_continuous_operation_2011_present
+    - change4_lnd_first_lunar_surface_dose_2019
 
 domain: space-weather
-entity: cislunar-radiation-environment
-scope: per-region    # per-region | per-asset | per-orbit | fleet
+entity: cislunar-space-radiation-and-fields
+scope: per-region-x-observable
+
+# --- REGIONS ---
+# Cislunar physics-region voxels by magnetospheric shielding regime.
+# Granularity is provisional; the substrate may subdivide regions as
+# direct-measurement convergence reveals sub-region variance.
+
 regions:
-  - earth_to_l1
-  - geo_transit
-  - lunar_vicinity
-  - lunar_surface
-  - deep_space_gateway
 
-# --- SOURCES ---
-# Eight buckets matching the access/credibility landscape for cislunar weather.
-#
-# Each bucket sets the PRIOR for the edges its measurements touch:
-#   - starting_certainty: Z_0 for edges that this bucket informs
-#   - eta_bounds_class:   the bucket-level band the per-edge dynamic rate
-#                         η(Z, residual) is allowed to move within (defined
-#                         numerically in ../validate.yaml)
-#
-# The learning rate itself is a PER-EDGE PER-CYCLE quantity — not a property
-# of the source. The source determines bounds; the edge owns the rate. See
-# the "ARCHITECTURAL COMMITMENT" block in validate.yaml.
+  - id: inner_magnetospheric
+    spatial_definition: "Geocentric distance ≤10 RE; consistently inside Earth's magnetopause under typical solar wind conditions"
+    operational_significance: |
+      Magnetosphere provides substantial shielding from SEPs and lower-
+      energy GCRs. Trapped radiation belt populations (Van Allen belts)
+      contribute distinct dose components in this region. Cislunar transit
+      vehicles spend hours-to-days passing through this region during
+      lunar-bound trajectories.
+    phase_ii_subdivision_criteria: |
+      Substrate would subdivide this region if direct measurement showed
+      residuals correlating with: (a) inner vs outer belt structure;
+      (b) magnetopause position variability under high dynamic pressure;
+      (c) plasmapause boundary effects on plasma populations.
+      Required measurement: dose rate at multiple radial distances within
+      the region, simultaneously, during a single transit event.
 
-sources:
+  - id: magnetotail_transit
+    spatial_definition: "Geocentric distance ~10-60 RE on the nightside; intermittent magnetospheric shielding"
+    operational_significance: |
+      Variable shielding regime. The Moon's monthly traverse of the
+      magnetotail means cislunar assets pass through this region with
+      varying degrees of magnetospheric vs solar wind exposure. Plasma
+      sheet boundary crossings produce abrupt shielding regime changes.
+      THEMIS-ARTEMIS has characterized this region's plasma sheet
+      structure extensively but per-edge causal substrate learning has
+      not been applied to the available data.
+    phase_ii_subdivision_criteria: |
+      Substrate would subdivide based on: (a) plasma sheet vs lobe
+      occupancy; (b) magnetotail "windsock" oscillation amplitude under
+      solar wind pressure variations; (c) substorm injection regions.
+      Required measurement: dose rate AND plasma context simultaneously
+      at multiple magnetotail positions.
 
-  # ============================================================
-  # 1. OPERATIONAL INSTRUMENTS  (Z_start = 0.75–0.85, eta band tight + high)
-  # Real-time, validated, wired feeds.
-  # ============================================================
-  operational_instruments:
-    starting_certainty: 0.80
-    eta_bounds_class: tight       # narrow band high in Z — trust the prior
-    confidence: high
-    description: "Real-time operational feeds for nowcast and short-horizon prediction"
-    providers:
+  - id: outer_lunar_vicinity
+    spatial_definition: "Lunar orbit altitude through Earth-Moon L1/L2 region; ~60 RE geocentric distance"
+    operational_significance: |
+      Predominantly solar wind exposure with intermittent magnetotail
+      occupancy depending on Moon's lunar phase relative to Sun-Earth
+      line. Direct GCR exposure; SEP arrival timing similar to L1 but
+      with potential geometric modulation. THEMIS-ARTEMIS provides
+      paired field+plasma measurements; LRO/CRaTER provides paired
+      dosimetry at lunar orbit. Chang'E 4 provides surface-level cross-
+      validation point.
+    phase_ii_subdivision_criteria: |
+      Substrate would subdivide based on: (a) inside vs outside the
+      lunar magnetic shadow (lunar wake); (b) Earth-Moon-Sun geometric
+      phase (eclipse vs full-Moon configurations); (c) sun-facing vs
+      anti-sunward lunar hemisphere for surface dose validation.
+      Required measurement: simultaneous dose and field measurements at
+      multiple cislunar positions, ideally including transit volumes.
 
-      - id: noaa_swpc
-        name: NOAA Space Weather Prediction Center
-        feeds:
-          - product: planetary_k_index
-            cadence: PT3H
-            endpoint: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
-          - product: dst_realtime
-            cadence: PT1H
-          - product: solar_xray_flux
-            cadence: PT1M
-          - product: proton_flux_geo
-            cadence: PT5M
-        access: public
-        license: NOAA-public-domain
+# --- PREDICTED OBSERVABLES ---
 
-      - id: nasa_set
-        name: NASA Space Environment Testbeds / SET program
-        feeds:
-          - product: dose_rate_models
-            cadence: PT1H
-        access: public
+predicted_observables:
 
-      - id: goes_r_series
-        name: GOES-R magnetometer + SEISS + EXIS
-        feeds:
-          - product: solar_wind_proxy_geo
-            cadence: PT1M
-          - product: energetic_particle_flux
-            cadence: PT1M
-          - product: euv_irradiance
-            cadence: PT1M
-        access: public
+  - id: cislunar_dose_rate
+    name: "Cislunar total ionizing dose rate at lunar orbit altitude"
+    units: "μGy/hour"
+    operational_relevance: tid_budgeting_artemis_crew_clps_hardware
+    risk_category: cumulative_radiation_dose
+    cadence_target: PT1H
+    scale: linear
+    notes: |
+      CRaTER baseline ~10-15 μGy/hour quiet time at lunar orbit (varies
+      with solar cycle phase via GCR modulation); enhanced 10-100x during
+      major SEP events. Linear scale is adequate for the dominant variation;
+      SEP-driven enhancement edges use log scale per the scale: field at
+      the edge level.
 
-      - id: sdo
-        name: Solar Dynamics Observatory (AIA + HMI + EVE)
-        feeds:
-          - product: solar_imagery_euv
-            cadence: PT12S
-          - product: magnetogram
-            cadence: PT45S
-        access: public
+  - id: cislunar_particle_field
+    name: "Cislunar IMF and energetic particle environment"
+    units: "composite — nT for field, particles/(cm^2·s·sr) for flux"
+    operational_relevance: see_risk_and_charging_risk_and_driver_state
+    risk_category: single_event_effects_and_charging
+    cadence_target: PT1M
+    scale: linear
+    component_observables:
+      - imf_btot_at_lunar_distance
+      - imf_bz_at_lunar_distance
+      - integral_particle_flux_gt_1mev_at_lunar_distance
+      - plasma_electron_density_at_lunar_distance
+    notes: |
+      THEMIS-ARTEMIS measures all four component observables directly at
+      lunar distance. The substrate predicts each as a function of L1
+      driver state propagated to lunar distance; ARTEMIS measurements
+      provide direct error signals for each component.
 
-      - id: ace
-        name: Advanced Composition Explorer (L1, legacy operational)
-        feeds:
-          - product: solar_wind_speed
-            cadence: PT1M
-          - product: imf_bz
-            cadence: PT1M
-        access: public
-        notes: "Aging spacecraft, validated against DSCOVR as primary"
+  - id: lunar_surface_dose
+    name: "Lunar surface dose rate"
+    units: "μGy/hour"
+    operational_relevance: future_crew_surface_operations
+    risk_category: cumulative_radiation_dose_surface
+    cadence_target: PT1H
+    scale: linear
+    measurement_status: |
+      Direct measurement available only at Chang'E 4 far-side site (Jan
+      2019-present). LRO/CRaTER provides lunar-orbit dose which cross-
+      validates to surface via published albedo modeling (Chang'E 4 LND
+      and CRaTER agreed within instrument uncertainty during Feb 2019
+      overflight). Phase II CLPS partnership would add multiple lunar
+      surface measurement points.
+    notes: |
+      Substrate predicts surface dose from orbital dose plus modeled
+      lunar albedo contribution (8-20% of total dose per published
+      transport modeling). Validation against Chang'E 4 LND is sparse
+      but high-value as a ground-truth point.
 
-      - id: dscovr
-        name: DSCOVR (PlasMag + Faraday cup)
-        feeds:
-          - product: solar_wind_velocity
-            cadence: PT1S
-          - product: imf_vector
-            cadence: PT1S
-        access: public
+# --- DRIVER CONTRIBUTORS ---
 
-  # ============================================================
-  # 2. RESEARCH / HISTORICAL  (Z_start = 0.60–0.70, η low-medium)
-  # Validated retrospectively. Used for prior calibration, not real-time.
-  # ============================================================
-  research_historical:
-    starting_certainty: 0.65
-    eta_bounds_class: tight       # archive data is well-characterized
-    confidence: medium-high
-    description: "Calibration corpus — magnetosphere and inner-heliosphere physics"
-    providers:
+driver_contributors:
 
-      - id: van_allen_probes
-        name: Van Allen Probes (RBSP, 2012–2019)
-        feeds:
-          - product: relativistic_electron_flux
-            archive: mission_complete
-          - product: ring_current_ion_composition
-            archive: mission_complete
-        used_for: ["radiation_belt_priors", "storm_response_calibration"]
+  # --------------------------------------------------------------
+  # Operational model documentation (Z_0 = 0.40)
+  # --------------------------------------------------------------
+  operational_model_documentation:
+    starting_certainty: 0.40
+    description: "Edges from operational model documentation — well-characterized but model-derived priors"
+    drivers:
 
-      - id: mms
-        name: Magnetospheric Multiscale (MMS)
-        feeds:
-          - product: reconnection_electron_dynamics
-        used_for: ["magnetopause_coupling_priors"]
+      - id: solar_proton_event
+        name: solar proton event onset at L1
+        source_documentation: ["HESPERIA REleASE", "UMASEP", "AE9/AP9"]
+        contributes_to:
+          - target_observable: cislunar_dose_rate
+            initial_multiplier_bound: [1.0, 100.0]
+            response_lag_hours: [0, 12]
+            scale: log
+            mechanism: "SEP arrival drives 10-100x dose rate enhancement in cislunar space; arrival timing modulated by magnetospheric configuration in inner_magnetospheric region"
+          - target_observable: cislunar_particle_field
+            initial_multiplier_bound: [1.0, 1000.0]
+            response_lag_hours: [0, 12]
+            scale: log
+            mechanism: "SEP arrival drives 2-3 OOM enhancement in cislunar energetic particle flux"
+          - target_observable: lunar_surface_dose
+            initial_multiplier_bound: [1.0, 80.0]
+            response_lag_hours: [0, 18]
+            scale: log
+            mechanism: "Surface SEP dose modulated by atmospheric absence (no shield) and lunar regolith albedo; somewhat lower enhancement than orbit due to surface geometry"
 
-      - id: artemis
-        name: ARTEMIS (lunar-orbiting THEMIS extensions)
-        feeds:
-          - product: lunar_wake_plasma
-          - product: solar_wind_at_lunar_distance
-        used_for: ["lunar_environment_priors"]
+      - id: cme_arrival
+        name: CME shock arrival at lunar distance
+        source_documentation: ["ENLIL-with-cone", "OSPREI"]
+        contributes_to:
+          - target_observable: cislunar_particle_field
+            initial_multiplier_bound: [0.7, 3.0]
+            response_lag_hours: [0.3, 2]
+            scale: linear
+            mechanism: "Shock compression of magnetotail; field perturbations propagate to lunar distance with delay relative to L1 arrival"
 
-      - id: arase
-        name: Arase / ERG (JAXA)
-        feeds:
-          - product: inner_magnetosphere_particles
-        used_for: ["cross_validation_van_allen"]
+      - id: magnetospheric_state
+        name: magnetopause position and magnetotail configuration
+        source_documentation: ["Shue magnetopause model", "Tsyganenko magnetic field models"]
+        contributes_to:
+          - target_observable: cislunar_dose_rate
+            initial_multiplier_bound: [0.5, 1.2]
+            response_lag_hours: [0, 1]
+            scale: linear
+            mechanism: "Magnetospheric configuration modulates SEP penetration to inner cislunar; substrate learns the modulation per voxel via paired CRaTER/ARTEMIS data"
 
-  # ============================================================
-  # 3. PLANNED INSTRUMENTS  (Z_start = 0.30, η medium)
-  # Schema-ready slots. Z and η adjust at launch when feeds turn live.
-  # ============================================================
-  planned_instruments:
-    starting_certainty: 0.30
-    eta_bounds_class: wide        # low prior trust — let η climb on disagreement
-    confidence: low
-    description: "Missions in development — schema present, endpoints TBD"
-    providers:
-
-      - id: gdc
-        name: Geospace Dynamics Constellation (NASA)
-        status: in_development
-        expected_launch_window: "late_decade"
-        feeds_planned:
-          - thermosphere_wind_3d
-          - ion_neutral_coupling
-        schema_ready: true
-
-      - id: lunar_trailblazer
-        name: Lunar Trailblazer
-        status: launched_mission_anomalous
-        launch_window: "2025 (IMAP rideshare)"
-        feeds_planned:
-          - lunar_surface_environment
-        schema_ready: true
-        notes: "Launched 2025 on IMAP rideshare; mission encountered serious anomalies post-launch. Treat data availability as uncertain. VERIFY current mission status against NASA / mission press releases before sending."
-
-      - id: artemis_support_assets
-        name: Artemis program ancillary instruments
-        status: phased
-        feeds_planned:
-          - lunar_orbit_radiation
-          - surface_dose_rate
-        schema_ready: true
-        notes: "Schema slot; specific assets bound as Artemis manifest firms up"
-
-      - id: imap
-        name: Interstellar Mapping and Acceleration Probe
-        status: launched_2025
-        launch_window: "2025"
-        feeds_planned:
-          - solar_wind_composition_L1
-          - energetic_neutral_atoms
-        schema_ready: true
-        notes: "VERIFY launch date and current operational status before sending to space-weather audience."
-
-      - id: planned_generic_slot_a
-        name: "TBD planned instrument A"
-        status: placeholder
-        schema_ready: true
-
-  # ============================================================
-  # 4. COMMERCIAL PARTNERSHIPS  (Z_start = 0.40–0.55, η medium)
-  # Sized to real categories; provider may be TBD pre-contract.
-  # ============================================================
-  commercial_partnerships:
-    starting_certainty: 0.45
-    eta_bounds_class: medium      # moderate prior — tighten as partnerships mature
-    confidence: low-medium
-    description: "Commercial sensor networks and constellations — category is real, provider may be TBD"
-    providers:
-
-      - id: spire
-        name: Spire Global
-        category: gnss_ro_thermosphere
-        provider_relationship: TBD
-        feeds_potential: [gnss_radio_occultation_density, ionospheric_tec]
-
-      - id: hawkeye360
-        name: HawkEye 360
-        category: rf_geolocation_context
-        provider_relationship: TBD
-        feeds_potential: [rf_environment_baseline]
-
-      - id: planet
-        name: Planet Labs
-        category: optical_earth_imaging
-        provider_relationship: TBD
-        feeds_potential: [aurora_imagery_optical]
-
-      - id: geooptics
-        name: GeoOptics
-        category: gnss_ro_atmospheric
-        provider_relationship: TBD
-        feeds_potential: [neutral_atmosphere_profile]
-
-      - id: muon_space
-        name: Muon Space
-        category: gnss_ro_plus_microwave
-        provider_relationship: TBD
-        feeds_potential: [space_weather_riometry, gnss_ro]
-
-      - id: blacksky
-        name: BlackSky
-        category: optical_tipping_cueing
-        provider_relationship: TBD
-
-      - id: commercial_generic_slot
-        name: "TBD commercial provider"
-        category: TBD
-        provider_relationship: TBD
-        schema_ready: true
-
-  # ============================================================
-  # 5. THIRD-PARTY RESEARCH  (Z_start = 0.25–0.40, η high)
-  # Model outputs, not direct measurement. Larger error envelopes.
-  # ============================================================
-  third_party_research:
-    starting_certainty: 0.30
-    eta_bounds_class: wide        # models are hypotheses — η climbs hard on residuals
-    confidence: low
-    description: "Model outputs and university feeds — treated as priors to update against measurement"
-    discipline_note: "Model outputs are NOT ground truth. They carry larger error envelopes than operational sensors. Learning treats them as hypotheses, not validators."
-    providers:
-
-      - id: ccmc
-        name: Community Coordinated Modeling Center (NASA GSFC)
-        outputs:
-          - product: enlil_solar_wind_prediction
-            cadence: PT6H
-          - product: swmf_geospace_state
-            cadence: PT1H
-        access: public
-
-      - id: nairas
-        name: NAIRAS (Nowcast of Atmospheric Ionizing Radiation for Aviation Safety)
-        outputs:
-          - product: cosmic_ray_dose_rate
-            cadence: PT1H
-        access: public
-        extension_note: "Surface-aviation focus; cislunar application requires altitude extrapolation"
-
-      - id: irene_ae9_ap9
-        name: IRENE / AE9-AP9 trapped radiation models
-        outputs:
-          - product: trapped_electron_flux_model
-            cadence: static    # statistical climatology; revised on irregular release cycle
-          - product: trapped_proton_flux_model
-            cadence: static    # statistical climatology; revised on irregular release cycle
-        access: public
-        notes: "Statistical, not real-time. Used as climatology prior for radiation belts"
-
-      - id: university_feeds_slot
-        name: "University-provided research feeds"
-        outputs: []
-        schema_ready: true
-
-  # ============================================================
-  # 6. MISSION TELEMETRY  (Z_start = 0.50–0.70 when bound, blank now)
-  # Vehicle-specific data. Slot is shaped, content arrives via mission ICDs.
-  # ============================================================
-  mission_telemetry:
-    starting_certainty: 0.50
-    eta_bounds_class: medium      # vehicle data is direct, but ICD-specific
-    confidence: contractually_gated
-    description: "Vehicle-specific telemetry — schema-shaped, content gated by mission ICDs and NDAs"
-    sme_contact_slot: "CLPS provider SME — engagement slot"
-    sme_contact_notes: "Don Kuettel (Intuitive Machines, CLPS) is a candidate engagement target on this slot. Attribution to the SWWX 2026 lunar panel quote is a hypothesis (Z=0.60 in working pod), not a confirmed identification — do not present as such in outreach."
-    providers:
-
-      - id: clps_im_1
-        name: Intuitive Machines IM-1 (Odysseus)
-        status: flown
-        feeds_potential: [vehicle_dosimeter, attitude_response_to_environment]
-        schema_ready: true
-
-      - id: clps_im_2
-        name: Intuitive Machines IM-2
-        status: flown_or_imminent
-        schema_ready: true
-
-      - id: clps_im_3
-        name: Intuitive Machines IM-3
-        status: planned
-        schema_ready: true
-
-      - id: clps_generic
-        name: "CLPS mission TBD"
-        status: placeholder
-        schema_ready: true
-
-      - id: artemis_vehicle_telemetry
-        name: Artemis vehicle telemetry
-        status: phased
-        feeds_potential: [crew_dosimetry, vehicle_systems_response]
-        schema_ready: true
-        access_note: "Some streams ITAR-controlled — see restricted bucket"
-
-      - id: commercial_lunar_relay
-        name: Future commercial lunar relay assets
-        status: future
-        schema_ready: true
-
-  # ============================================================
-  # 7. SME KNOWLEDGE  (Z_start = 0.25–0.45, η high)
-  # Expert priors via natural language. LLM extracts to causal structure.
-  # ============================================================
-  sme_knowledge:
+  # --------------------------------------------------------------
+  # Peer-reviewed literature (Z_0 = 0.35)
+  # --------------------------------------------------------------
+  literature:
     starting_certainty: 0.35
-    eta_bounds_class: wide        # expert prior — update freely against measurement
-    confidence: low-medium
-    description: "Expert-provided priors — encoded as documents, extracted to causal hypotheses"
-    sme_contact_slot: "Tzu-Wei Fang — WAM-IPE; commercial-spacecraft forecasting"
-    providers:
+    description: "Edges from peer-reviewed cislunar radiation environment and heliospheric literature"
+    drivers:
 
-      - id: sme_tzuwei_wamipe
-        name: WAM-IPE coupled whole-atmosphere ionosphere prior
-        format: document
-        path: "./priors/wamipe_prior.md"
-        status: placeholder
-        schema_ready: true
-        prior_focus:
-          - "more and better space weather forecasting capabilities for the commercial spacecraft industry"
-          - thermosphere_ionosphere_coupling
-          - storm_time_density_response
+      - id: imf_bz
+        name: IMF Bz (southward component) at L1
+        contributes_to:
+          - target_observable: cislunar_particle_field
+            initial_multiplier_bound: [0.7, 2.5]
+            response_lag_hours: [0.3, 2]
+            scale: linear
+            mechanism: "Southward Bz drives magnetospheric reconfiguration; affects cislunar plasma populations via magnetotail dynamics — characterized extensively in THEMIS-ARTEMIS literature"
 
-      - id: sme_generic_slot
-        name: "Additional SME prior slot"
-        format: document
-        schema_ready: true
+      - id: solar_wind_dynamic_pressure
+        name: solar wind dynamic pressure at L1
+        contributes_to:
+          - target_observable: cislunar_particle_field
+            initial_multiplier_bound: [0.8, 2.0]
+            response_lag_hours: [0.3, 1]
+            scale: linear
+            mechanism: "Dynamic pressure variation moves magnetopause and stretches magnetotail; alters lunar exposure to solar wind vs magnetospheric environment (the windsock effect documented in THEMIS-ARTEMIS observations)"
 
-  # ============================================================
-  # 8. RESTRICTED  (schema-shaped, content-blank)
-  # ITAR / classified / proprietary. We acknowledge the slot exists.
-  # ============================================================
-  restricted:
-    starting_certainty: null
-    eta_bounds_class: null        # no learning until content is bound
-    confidence: gated
-    description: "ITAR / classified / proprietary — schema shape declared, content blank pending access"
-    access_landscape_acknowledgement: true
-    providers:
+      - id: solar_wind_speed
+        name: solar wind speed at L1
+        contributes_to:
+          - target_observable: cislunar_particle_field
+            initial_multiplier_bound: [0.8, 2.0]
+            response_lag_hours: [1, 4]
+            scale: linear
+            mechanism: "Solar wind speed propagates to lunar distance with delay; modulates particle transport and arrival timing"
 
-      - id: itar_slot
-        name: "ITAR-controlled feeds"
-        access: itar_gated
-        schema_ready: true
-        content: null
+  # --------------------------------------------------------------
+  # SME knowledge (Z_0 = 0.50)
+  # --------------------------------------------------------------
+  sme_knowledge:
+    starting_certainty: 0.50
+    description: "Expert priors — populated via Phase I SME engagement"
+    sme_contact_slot: "Cislunar radiation and lunar mission SME — engagement pending"
+    candidate_contacts:
+      - "Nathan Schwadron (UNH, CRaTER lead scientist)"
+      - "Vassilis Angelopoulos (UCLA, THEMIS-ARTEMIS PI)"
+      - "Rob Lillis (UC Berkeley SSL, ESCAPADE PI) — established SWWX 2026 contact"
+      - "Tzu-Wei Fang (NOAA SWPC, SWWX 2026 lunar mission panel)"
+    drivers: []
 
-      - id: classified_slot
-        name: "Classified DoD / IC feeds"
-        access: clearance_gated
-        schema_ready: true
-        content: null
+  # --------------------------------------------------------------
+  # Foundation-model training corpus (Z_0 = 0.30)
+  # --------------------------------------------------------------
+  foundation_model_training:
+    starting_certainty: 0.30
+    description: "Edges hypothesized from foundation-model corpus without direct literature or doc support"
+    drivers: []
 
-      - id: proprietary_slot
-        name: "Proprietary commercial feeds (NDA-gated)"
-        access: contract_gated
-        schema_ready: true
-        content: null
+# --- STATE INDICES ---
 
-# --- CAUSAL HYPOTHESES ---
-# Edges expected to exist. Auto-extracted from sources when format permits;
-# otherwise declared here for the learning loop to validate against data.
+state_indices:
 
-hypotheses:
+  - id: lunar_phase
+    name: Earth-Moon-Sun geometric phase
+    derivation: "Computed from lunar ephemeris (JPL Horizons)"
+    correlates_with:
+      - cislunar_particle_field  # determines magnetotail vs solar wind exposure
+      - cislunar_dose_rate       # via shielding regime
+    use_phase: [voxel_selection, baseline_construction]
+    notes: |
+      Lunar phase determines which physics region the Moon is currently
+      traversing. Full Moon = magnetotail exposure; New Moon = solar wind
+      exposure; quarter Moon = boundary regions. Used to select voxel and
+      construct phase-specific baselines.
 
-  - cause: cme_arrival
-    effect: dst_index
-    expected_weight: dominant
-    lag: 12-48h
-    signature: "Dst depression follows southward Bz at L1 by 30-90 min"
-    notes: "Operational backbone of storm-time response"
+  - id: solar_cycle_phase
+    name: Solar cycle phase / GCR modulation level
+    derivation: "From NOAA SWPC solar cycle indices; sunspot number, F10.7; inverse relationship to GCR access"
+    correlates_with:
+      - cislunar_dose_rate       # GCR modulation sets quiet-time baseline; high solar activity → reduced GCR access; low solar activity → enhanced GCR
+      - lunar_surface_dose       # surface GCR follows orbit GCR with albedo contribution
+    use_phase: [baseline_construction]
+    notes: |
+      Slowly-varying over Phase I window (relative to event timescales).
+      CRaTER record 2009-present spans 1.5+ solar cycles, providing
+      well-characterized GCR modulation baselines per cycle phase.
+      Used to construct quiet-time dose floors per voxel × cycle phase
+      rather than as a per-edge causal driver — substrate cannot learn
+      11-year modulation as a per-event multiplier on Phase I timescale.
 
-  - cause: imf_bz_southward
-    effect: radiation_belt_enhancement
-    expected_weight: primary
-    lag: 1-3 days
-    signature: "MeV electron flux rises after sustained southward Bz"
+  - id: kp_index
+    name: Kp planetary geomagnetic index
+    derivation: "Aggregated from ground magnetometer disturbance"
+    correlates_with:
+      - cislunar_particle_field
+    use_phase: [storm_phase_tagging]
+    notes: "Operationally known correlate of magnetospheric state; not a causal driver"
 
-  - cause: solar_proton_event
-    effect: cislunar_dose_rate
-    expected_weight: dominant_episodic
-    lag: 0-12h
-    signature: "Step increase in dose rate outside Earth's magnetosphere"
-    notes: "Critical for Artemis crew and CLPS payload risk"
-
-  - cause: solar_wind_dynamic_pressure
-    effect: magnetopause_standoff
-    expected_weight: primary
-    lag: 30-90min
-    signature: "Magnetopause compression correlates with sqrt(n*v^2)"
-
-  - cause: geomagnetic_storm
-    effect: thermosphere_density_at_leo
-    expected_weight: dominant
-    lag: 2-12h
-    signature: "Density spike at LEO altitudes during storm main phase"
-    notes: "Cross-domain link to LEO prior (see ../leo/prior.yaml)"
-
-  - cause: lunar_wake_crossing
-    effect: vehicle_charging_environment
-    expected_weight: moderate
-    lag: orbit-phase
-    signature: "Charging differential when crossing terminator and wake"
-    notes: "ARTEMIS data underpins this prior"
+  - id: dst_index
+    name: Dst ring current index
+    derivation: "Aggregated from low-latitude ground magnetometers"
+    correlates_with:
+      - cislunar_dose_rate
+      - cislunar_particle_field
+    use_phase: [baseline_construction, storm_phase_tagging]
+    notes: "Used for quiet-time identification (Dst > -30) per GRACE-FO precedent"
 
 # --- INTERACTIONS ---
 
 interactions:
-  - factors: [solar_proton_event, magnetosphere_state]
-    type: shielding_modulation
-    note: "Closed magnetosphere reduces SEP penetration to Earth-side cislunar"
 
-  - factors: [solar_wind_speed, imf_bz, solar_wind_density]
-    type: storm_driver_triplet
-    note: "Storm intensity nonlinear in this triplet"
+  - factors: [solar_proton_event, magnetospheric_state, lunar_phase]
+    type: shielding_dependent_arrival
+    note: |
+      SEP penetration to inner_magnetospheric region depends on
+      magnetospheric state. Outer_lunar_vicinity exposure depends on
+      lunar phase relative to Sun-Earth line. Same SEP event produces
+      different cislunar dose responses depending on geometric
+      configuration at arrival time.
 
-  - factors: [trapped_radiation_climatology, cme_compression]
-    type: belt_dropout_then_rebuild
-    note: "Storms first deplete, then enhance radiation belts"
+  - factors: [magnetotail_stretching, lunar_phase, solar_wind_dynamic_pressure]
+    type: windsock_effect
+    note: |
+      THEMIS-ARTEMIS observed: high solar wind pressure pushes magnetotail
+      aside, exposing Moon to solar wind even when geometrically inside
+      the magnetotail. This is the windsock effect that the substrate
+      should learn from paired ARTEMIS field data + L1 pressure measurements.
+
+  - factors: [gcr_modulation_state, solar_proton_event]
+    type: anticorrelated_baseline_event_pairing
+    note: |
+      Same as Mars: SEP frequency peaks at solar maximum when GCR
+      modulation is strongest. Net dose budget is non-monotonic in
+      solar cycle phase. CRaTER 2009-present record captures this
+      across 1.5+ cycles.
+
+# --- MEASUREMENT GAPS ---
+# Specific unresolved questions where Phase I direct measurement is
+# inadequate. These are sharpened gaps, not full-regime gaps. Phase II
+# CLPS partnership and ESCAPADE engagement would address them directly.
+
+measurement_gaps:
+
+  - id: transit_volume_dose_resolution
+    description: |
+      Dose rate at intermediate distances between LEO and lunar orbit
+      (the cislunar "transit" volume) is not directly measured. CRaTER
+      is at ~50 km lunar altitude; LEO dosimeters (multiple) are at
+      LEO; the transit volume between has only model interpolations
+      and occasional crewed-mission measurements (Apollo legacy data,
+      Artemis II expected 2026).
+    phase_ii_target: "CLPS-mission dosimetry during transit; Artemis crew dosimetry archive"
+    affected_regions: [inner_magnetospheric, magnetotail_transit]
+
+  - id: high_energy_sep_spectrum_resolution
+    description: |
+      CRaTER's microdosimeter has limited energy resolution above ~55 MeV
+      protons. Substrate predictions of ultra-high-energy SEP component
+      (>100 MeV/nuc, responsible for hardware SEEs) lack direct
+      validation in cislunar at the spectral resolution required for
+      hardware risk forecasting.
+    phase_ii_target: "Dedicated SEP spectrometer on CLPS payload or Artemis ancillary"
+    affected_regions: [outer_lunar_vicinity, magnetotail_transit]
+
+  - id: near_surface_vs_orbital_dose_difference
+    description: |
+      Surface dose validation exists only at Chang'E 4 far-side site
+      (single point). Lunar surface dose varies with regolith composition,
+      latitude, and slope; the lunar near-side may differ from far-side.
+      Substrate's surface dose predictions cannot be regionally validated.
+    phase_ii_target: "Multi-site CLPS dosimetry across near-side, far-side, and polar locations"
+    affected_regions: [outer_lunar_vicinity]
+
+  - id: cislunar_ion_composition_at_high_resolution
+    description: |
+      THEMIS-ARTEMIS measures plasma electrons and ions at lunar distance
+      but ion composition resolution is limited. SEP composition (proton vs
+      heavy ion fraction) affects SEE risk asymmetrically and substrate
+      cannot fully constrain this with current cislunar measurements.
+    phase_ii_target: "ESCAPADE near-moon-passage composition data during loiter; future dedicated SEP composition instrument"
+    affected_regions: [outer_lunar_vicinity]
 
 # --- KNOWN GAPS ---
+# Operational gaps the prior recognizes at composition time.
 
 known_gaps:
-  - "Real-time cislunar in-situ dose measurement outside magnetosphere (covered only by mission-of-opportunity)"
-  - "Surface-level lunar radiation environment under storm conditions"
-  - "Crew-effective-dose translation from particle spectra for Artemis ConOps"
-  - "Coupling between far-side lunar environment and Earth-side L1 monitors"
+  - "Real-time forecast lead time for cislunar SEP arrival (currently retrospective via L1 + propagation)"
+  - "Lunar regolith composition variability effect on albedo dose contribution"
+  - "Trapped radiation belt response during major storms (CRaTER samples but does not optimize for inner magnetospheric voxel)"
+  - "Spatial resolution within physics-region voxels (provisional 3-region grid; subdivision criteria declared per region)"
 
 # --- BUILD OPTIONS ---
 
@@ -486,6 +421,11 @@ build:
   initial_certainty: from_source
   curiosity_threshold: 0.70
   max_nodes: 200
-  target_device: edge_or_cloud      # cislunar models likely live above MCU class
+  target_device: edge_or_cloud
+  attribution: activity_weighted
+  baseline_construction: quiet_time_with_gcr_modulation
   cross_domain_links:
-    - "../leo/prior.yaml"           # thermosphere density at LEO informs cislunar transit phases
+    - "../leo/prior.yaml"      # shared upstream drivers (DSCOVR/ACE/SWPC)
+    - "../geo/prior.yaml"      # shared SEP source mechanism; magnetospheric
+                                # state for inner_magnetospheric voxel
+    - "../mars/prior.yaml"     # shared SEP source mechanism

@@ -1,0 +1,366 @@
+# nm prior config — GEO energetic particle and field environment
+#
+# Predicted observables (validated in geo/validate.yaml via GOES-R SEISS + MAG
+# as direct error signals):
+#   - >2 MeV electron flux                  (internal charging risk)
+#   - >10 MeV and >50 MeV proton flux       (SEE risk during SEP events)
+#   - 1-50 keV electron flux                (surface charging risk)
+#   - local B-field magnitude               (magnetospheric state)
+#
+# Drivers form edges to predicted observables with initial multiplier bounds,
+# response lag from physics priors, and bounded-low Z_0 by epistemic kind
+# of the contributing source. Sensor channels are NOT in this file —
+# they live in validate.yaml because sensors test edges, they do not
+# contribute them.
+#
+# Scale convention:
+#   linear  — multiplier learned in linear space (default, density-like response)
+#   log     — multiplier learned in log space (SEP-driven edges spanning >2 OOM)
+#
+# Cadence convention: ISO 8601 durations (PT60S, PT5M, PT6H, P1D) for time
+# intervals. Reserved literals for non-time cadences:
+#   static          — does not change in the operational window
+#   event_driven    — updates only when an upstream event fires
+#   archive_pull    — pulled from an archive on demand, not streamed
+#   continuous      — sub-second / streaming, no fixed cadence
+
+version: "0.1"
+schema: nm-prior
+provenance:
+  added: "2026-05-14"
+  added_by: heidi
+  evidence:
+    - swwx_2026_anomaly_resolution_thread
+    - nasa_sbir_spwx_1_s26a_subtopic
+    - grace_fo_precedent_pipeline
+    - goes_r_seiss_operational_continuity
+
+domain: space-weather
+entity: geo-energetic-particle-and-field-environment
+scope: per-region-x-observable
+
+# --- REGIONS ---
+# GEO local-time decomposition. Six bins of 4 hours each, chosen to capture
+# operationally distinct particle morphology across hot plasma injection,
+# drift dispersion, and dayside compression. Resolution is uniform across
+# observables for Phase I (regime-portability demonstration); per-observable
+# voxel refinement is a Phase II curiosity-trigger output.
+
+regions:
+
+  - id: lt_0_4
+    lt_range_hours: [0, 4]
+    operational_significance: |
+      Midnight injection sector. Substorm injection deposits fresh hot plasma
+      electrons (1-50 keV); MeV electron recovery enhancement emerges here
+      first after main-phase recovery. Highest surface-charging risk sector
+      statistically.
+
+  - id: lt_4_8
+    lt_range_hours: [4, 8]
+    operational_significance: |
+      Pre-dawn drift sector. Hot electrons injected at midnight drift eastward
+      into this region with energy-dependent dispersion. Dawn-side acceleration
+      mechanisms produce MeV electron flux emergence during recovery.
+
+  - id: lt_8_12
+    lt_range_hours: [8, 12]
+    operational_significance: |
+      Morning convection sector. Dispersed electron populations; lower hot
+      plasma density relative to nightside. Approaching dayside compression
+      effects on B-field.
+
+  - id: lt_12_16
+    lt_range_hours: [12, 16]
+    operational_significance: |
+      Afternoon dayside. Compressed magnetosphere under high dynamic pressure;
+      magnetopause shadowing of trapped electrons during extreme compression.
+      Quiescent for hot plasma except during dusk-side substorm onset.
+
+  - id: lt_16_20
+    lt_range_hours: [16, 20]
+    operational_significance: |
+      Dusk sector. Plasmasheet boundary; seed populations for radial diffusion
+      build here. Pre-substorm growth-phase signatures appear in this region
+      before midnight onset.
+
+  - id: lt_20_24
+    lt_range_hours: [20, 24]
+    operational_significance: |
+      Pre-midnight growth phase. Field-line stretching during substorm growth;
+      hot electron precipitation precursors. Operationally adjacent to
+      midnight injection sector.
+
+# --- PREDICTED OBSERVABLES ---
+# What the substrate predicts at each region. Each is validated against a
+# direct error signal in geo/validate.yaml. operational_relevance ties the
+# observable to a specific anomaly-resolution risk category that
+# SPWX.1.S26A names.
+
+predicted_observables:
+
+  - id: e_flux_gt_2mev
+    name: ">2 MeV electron flux"
+    units: "electrons/(cm^2·s·sr)"
+    operational_relevance: internal_charging_risk
+    risk_category: deep_dielectric_charging
+    cadence_target: PT5M
+    scale: linear
+    notes: "Storm-time outer belt enhancement; days-timescale build after recovery"
+
+  - id: p_flux_gt_10mev
+    name: ">10 MeV proton flux"
+    units: "protons/(cm^2·s·sr)"
+    operational_relevance: see_risk_sep_onset
+    risk_category: single_event_effects
+    cadence_target: PT5M
+    scale: log
+    notes: "SEP arrival drives 2-4 orders of magnitude enhancement; log-scale learning required"
+
+  - id: p_flux_gt_50mev
+    name: ">50 MeV proton flux"
+    units: "protons/(cm^2·s·sr)"
+    operational_relevance: see_risk_high_energy
+    risk_category: single_event_effects
+    cadence_target: PT5M
+    scale: log
+    notes: "Higher-energy SEP component; arrives earlier in event, smaller magnetospheric cutoff effect"
+
+  - id: e_flux_hot_plasma
+    name: "1-50 keV electron flux"
+    units: "electrons/(cm^2·s·sr·keV)"
+    operational_relevance: surface_charging_risk
+    risk_category: spacecraft_surface_charging
+    cadence_target: PT1M
+    scale: linear
+    notes: "Substorm injection dominates; strong LT structure; sub-hour timescales"
+
+  - id: b_field_magnitude
+    name: "local B-field magnitude at GEO"
+    units: "nT"
+    operational_relevance: magnetospheric_state
+    risk_category: configuration_state
+    cadence_target: PT1M
+    scale: linear
+    notes: "Context observable; informs cutoff calculations and population accessibility"
+
+# --- DRIVER CONTRIBUTORS ---
+# Drivers form edges to predicted observables. Bucketed by epistemic kind
+# of the contributing source. Each edge declares:
+#   target_observable           — which predicted observable the edge feeds
+#   initial_multiplier_bound    — physical range the multiplier can occupy
+#   response_lag_hours          — bounds on driver-to-observable delay
+#   mechanism                   — short physical justification
+#   scale                       — inherited from target observable but explicit
+#
+# Z_0 is bucket-level (epistemic kind), bounded ≤ 0.5 across all contributors.
+# Certainty is earned through validation; never assigned by source authority.
+
+driver_contributors:
+
+  # --------------------------------------------------------------
+  # Operational model documentation (Z_0 = 0.40)
+  # Edges sourced from peer-validated operational model docs:
+  # AE9/AP9, HESPERIA REleASE, UMASEP, OSPREI, ENLIL.
+  # --------------------------------------------------------------
+  operational_model_documentation:
+    starting_certainty: 0.40
+    description: "Edges from operational model documentation — well-characterized but model-derived priors"
+    drivers:
+
+      - id: solar_proton_event
+        name: solar proton event onset
+        source_documentation: ["HESPERIA REleASE", "UMASEP"]
+        contributes_to:
+          - target_observable: p_flux_gt_10mev
+            initial_multiplier_bound: [1.0, 10000.0]
+            response_lag_hours: [0, 12]
+            scale: log
+            mechanism: "SEP arrival drives orders-of-magnitude proton flux enhancement at GEO"
+          - target_observable: p_flux_gt_50mev
+            initial_multiplier_bound: [1.0, 1000.0]
+            response_lag_hours: [0, 8]
+            scale: log
+            mechanism: "Higher-energy protons arrive earlier in event; smaller cutoff modulation"
+
+      - id: cme_arrival
+        name: CME shock arrival at L1
+        source_documentation: ["OSPREI", "ENLIL"]
+        contributes_to:
+          - target_observable: b_field_magnitude
+            initial_multiplier_bound: [0.7, 2.0]
+            response_lag_hours: [0.3, 1.0]
+            scale: linear
+            mechanism: "Shock compression of dayside magnetosphere; GEO field response within minutes of L1 arrival"
+          - target_observable: e_flux_hot_plasma
+            initial_multiplier_bound: [1.0, 5.0]
+            response_lag_hours: [0.5, 6]
+            scale: linear
+            mechanism: "Shock-driven injection plus storm onset feeds hot plasma into nightside"
+
+  # --------------------------------------------------------------
+  # Peer-reviewed literature (Z_0 = 0.35)
+  # Edges sourced from published heliophysics literature on
+  # magnetospheric response to solar wind drivers.
+  # --------------------------------------------------------------
+  literature:
+    starting_certainty: 0.35
+    description: "Edges from peer-reviewed heliophysics literature on driver-observable relationships"
+    drivers:
+
+      - id: imf_bz
+        name: IMF Bz (southward component)
+        contributes_to:
+          - target_observable: e_flux_gt_2mev
+            initial_multiplier_bound: [0.5, 4.0]
+            response_lag_hours: [24, 96]
+            scale: linear
+            mechanism: "Sustained southward Bz → enhanced radial diffusion → MeV electron acceleration over 1-4 days"
+          - target_observable: e_flux_hot_plasma
+            initial_multiplier_bound: [0.7, 3.0]
+            response_lag_hours: [0.5, 2]
+            scale: linear
+            mechanism: "Bz southward → magnetospheric convection → plasma sheet injection"
+          - target_observable: b_field_magnitude
+            initial_multiplier_bound: [0.8, 1.5]
+            response_lag_hours: [0.1, 1]
+            scale: linear
+            mechanism: "Bz drives reconnection and magnetospheric reconfiguration"
+
+      - id: solar_wind_dynamic_pressure
+        name: solar wind dynamic pressure
+        contributes_to:
+          - target_observable: b_field_magnitude
+            initial_multiplier_bound: [0.8, 1.8]
+            response_lag_hours: [0.1, 0.5]
+            scale: linear
+            mechanism: "Pressure compression moves magnetopause inward; GEO field magnitude responds within minutes"
+          - target_observable: e_flux_gt_2mev
+            initial_multiplier_bound: [0.5, 2.0]
+            response_lag_hours: [12, 48]
+            scale: linear
+            mechanism: "Storm onset compression depletes outer belt; rebuild occurs over subsequent days"
+
+      - id: solar_wind_speed
+        name: solar wind bulk speed
+        contributes_to:
+          - target_observable: e_flux_gt_2mev
+            initial_multiplier_bound: [0.7, 3.5]
+            response_lag_hours: [24, 72]
+            scale: linear
+            mechanism: "High-speed streams drive belt enhancement via ULF wave acceleration"
+
+  # --------------------------------------------------------------
+  # SME knowledge (Z_0 = 0.50)
+  # Direct expert priors via documents. Currently a slot —
+  # populated via Phase I SME engagement.
+  # --------------------------------------------------------------
+  sme_knowledge:
+    starting_certainty: 0.50
+    description: "Expert priors — populated via Phase I SME engagement"
+    sme_contact_slot: "GEO operations / spacecraft anomaly SME — engagement pending"
+    candidate_contacts:
+      - "Mark Miesch (NOAA SWPC, R2O2R operational scientist)"
+      - "Tzu-Wei Fang (NOAA SWPC, lunar mission panel chair)"
+    drivers: []
+
+  # --------------------------------------------------------------
+  # Foundation-model training corpus (Z_0 = 0.30)
+  # Edges proposed by orchestration LLM that lack direct
+  # literature or model-doc support. Held at lowest Z_0 until
+  # validation. Empty at composition time; populated when the
+  # agent encounters edge proposals that don't fit other buckets.
+  # --------------------------------------------------------------
+  foundation_model_training:
+    starting_certainty: 0.30
+    description: "Edges hypothesized from foundation-model corpus without direct literature or doc support"
+    drivers: []
+
+# --- STATE INDICES ---
+# Derived indices that CO-VARY with substrate predictions but are NOT
+# causal drivers. Kept out of driver_contributors deliberately.
+#
+# Why this block exists architecturally: the substrate's core commitment
+# is causal learning, not correlational learning. Including Kp or Dst
+# as a "driver" would teach the substrate that a derived geomagnetic
+# index causes MeV electron acceleration or hot plasma injection — which
+# is false. The actual driver pathway runs through solar wind state
+# (Bz, dynamic pressure, speed) producing both the index response AND
+# the GEO particle response simultaneously. Index and observable share
+# a common upstream cause; one does not cause the other.
+#
+# State indices are used by the substrate for:
+#   - Quiet-time baseline construction (per GRACE-FO pipeline pattern:
+#     Dst > -30 and Bz > -5 identifies quiet periods)
+#   - Storm-phase tagging during validation (main phase vs recovery)
+#   - Sanity-checking storm-period expectations
+#
+# They are NOT used to form causal edges. Validate.yaml provisions
+# these endpoints with role: state_index, not role: input.
+
+state_indices:
+
+  - id: kp_index
+    name: Kp planetary geomagnetic index
+    derivation: "Aggregated from ground magnetometer disturbance; 3-hour cadence"
+    correlates_with:
+      - e_flux_hot_plasma   # both driven by magnetospheric convection
+      - e_flux_gt_2mev      # both follow from storm activity
+    use_phase: [storm_phase_tagging]
+    notes: "Operationally well-known correlate; not a causal driver of GEO populations"
+
+  - id: dst_index
+    name: Dst (ring current index)
+    derivation: "Aggregated from low-latitude ground magnetometers; 1-hour cadence"
+    correlates_with:
+      - e_flux_gt_2mev      # both follow from main-phase storm dynamics
+      - b_field_magnitude   # ring current does directly modify field, but Dst is itself a derived index
+    use_phase: [baseline_construction, storm_phase_tagging]
+    notes: "Used for quiet-time identification (Dst > -30) per GRACE-FO precedent; not a causal driver"
+
+# --- INTERACTIONS ---
+# Multi-driver interactions the substrate should attend to during
+# activity-weighted attribution.
+
+interactions:
+
+  - factors: [solar_proton_event, magnetosphere_state]
+    type: shielding_modulation
+    note: "Closed/quiet magnetosphere reduces SEP penetration to GEO; open/disturbed enhances it"
+
+  - factors: [imf_bz_sustained, solar_wind_speed]
+    type: belt_enhancement_pathway
+    note: "Sustained southward Bz with high speed produces strongest >2 MeV electron enhancement"
+
+  - factors: [cme_arrival, trapped_belt_state]
+    type: dropout_then_rebuild
+    note: "Storms first deplete then enhance >2 MeV electron flux; non-monotonic response"
+
+  - factors: [imf_bz_sustained, solar_wind_dynamic_pressure]
+    type: storm_main_phase_coupling
+    note: "Sustained Bz southward with elevated pressure produces strongest main-phase response; Kp/Dst track this state but do not cause it"
+
+# --- KNOWN GAPS ---
+# Operational gaps the prior recognizes at composition time. The substrate
+# may surface additional gaps during validation as persistent low-Z edges
+# or BH-variance triggers.
+
+known_gaps:
+  - "Pitch-angle distribution at GEO (SEISS provides integral flux, not full distribution)"
+  - "Penetrating electron drift timescale prediction during storm main phase"
+  - "Plasma sheet density at injection latitude — not directly observed at GEO"
+  - "Substorm onset prediction lead time (currently retrospective in operations)"
+  - "Energy-dependent dispersion of injected hot plasma across LT regions"
+
+# --- BUILD OPTIONS ---
+
+build:
+  initial_certainty: from_source
+  curiosity_threshold: 0.70
+  max_nodes: 200
+  target_device: edge_or_cloud
+  attribution: activity_weighted
+  baseline_construction: quiet_time_median
+  cross_domain_links:
+    - "../leo/prior.yaml"      # LEO precedent; shared upstream drivers
+                                # (DSCOVR/ACE solar wind, NOAA Kp/Dst)
