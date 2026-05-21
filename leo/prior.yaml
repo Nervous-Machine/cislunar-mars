@@ -1,6 +1,7 @@
 # nm prior config — LEO thermosphere density (space-atlas)
-# Derived from the GRACE-FO causal-discovery pipeline (~/space-waze).
-# WHAT to learn: density response in LEO voxels driven by space-weather inputs.
+#
+# Sources for prior provisioning: external data Claude can pull from to
+# inform the LEO density prior beyond its own training-data inference.
 #
 # Cadence convention: ISO 8601 durations (PT10S, PT1H, P1D) with reserved
 # literals: static, event_driven, archive_pull, continuous.
@@ -153,18 +154,6 @@ interactions:
     type: dynamic_pressure
     note: "ρv² combination drives magnetopause compression"
 
-# --- BASELINE STRATEGY ---
-# How to compute the per-voxel quiet-time baseline that error signals
-# are measured against (see learn-from-grace-fo.js fix #6).
-
-baseline:
-  quiet_definition:
-    dst_min: -30
-    imf_bz_min: -5
-  primary: "median of quiet-time density per voxel (≥3 quiet observations required)"
-  fallback: "median of all-time density per voxel"
-  rationale: "Storm-time enhancement is measured relative to quiet baseline; otherwise climatology dominates the signal"
-
 # --- KNOWN GAPS ---
 
 known_gaps:
@@ -172,16 +161,3 @@ known_gaps:
   - "No coverage of polar caps under extreme storm conditions"
   - "Solar EUV irradiance not currently a driver — could be added when SDO/EVE feed is wired"
   - "No commercial GNSS-RO density inputs yet (Spire, Muon Space, GeoOptics)"
-
-# --- BUILD OPTIONS ---
-
-build:
-  initial_certainty: from_source
-  curiosity_threshold: 0.70
-  min_certainty_weight: 0.10        # FIX 8: activity gating threshold
-  voxel_history_window: 10
-  multiplier_bounds:
-    min: 0.5
-    max: 5.0
-  multiplier_update_scale: 0.1
-  target_device: cloud_or_edge

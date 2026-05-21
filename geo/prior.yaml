@@ -1,28 +1,22 @@
 # nm prior config — GEO energetic particle and field environment
 #
-# Predicted observables (validated in geo/validate.yaml via GOES-R SEISS + MAG
-# as direct error signals):
+# Sources for prior provisioning: external data, model documentation, and
+# expert priors Claude can draw on to inform the GEO prior beyond its own
+# training-data inference. Sensor endpoints (which TEST the prior) live in
+# geo/validate.yaml.
+#
+# Predicted observables (the targets the prior is built for):
 #   - >2 MeV electron flux                  (internal charging risk)
 #   - >10 MeV and >50 MeV proton flux       (SEE risk during SEP events)
 #   - 1-50 keV electron flux                (surface charging risk)
 #   - local B-field magnitude               (magnetospheric state)
 #
-# Drivers form edges to predicted observables with initial multiplier bounds,
-# response lag from physics priors, and bounded-low Z_0 by epistemic kind
-# of the contributing source. Sensor channels are NOT in this file —
-# they live in validate.yaml because sensors test edges, they do not
-# contribute them.
-#
 # Scale convention:
-#   linear  — multiplier learned in linear space (default, density-like response)
-#   log     — multiplier learned in log space (SEP-driven edges spanning >2 OOM)
+#   linear  — multiplier in linear space (default, density-like response)
+#   log     — multiplier in log space (SEP-driven edges spanning >2 OOM)
 #
 # Cadence convention: ISO 8601 durations (PT60S, PT5M, PT6H, P1D) for time
-# intervals. Reserved literals for non-time cadences:
-#   static          — does not change in the operational window
-#   event_driven    — updates only when an upstream event fires
-#   archive_pull    — pulled from an archive on demand, not streamed
-#   continuous      — sub-second / streaming, no fixed cadence
+# intervals. Reserved literals: static, event_driven, archive_pull, continuous.
 
 version: "0.1"
 schema: nm-prior
@@ -259,9 +253,6 @@ driver_contributors:
     starting_certainty: 0.50
     description: "Expert priors — populated via Phase I SME engagement"
     sme_contact_slot: "GEO operations / spacecraft anomaly SME — engagement pending"
-    candidate_contacts:
-      - "Mark Miesch (NOAA SWPC, R2O2R operational scientist)"
-      - "Tzu-Wei Fang (NOAA SWPC, lunar mission panel chair)"
     drivers: []
 
   # --------------------------------------------------------------
@@ -319,8 +310,9 @@ state_indices:
     notes: "Used for quiet-time identification (Dst > -30) per GRACE-FO precedent; not a causal driver"
 
 # --- INTERACTIONS ---
-# Multi-driver interactions the substrate should attend to during
-# activity-weighted attribution.
+# Known multi-driver interactions worth noting at prior-composition time.
+# These are not modeled as joint edges — they're hints for which per-edge
+# regime splits or extra context variables may be needed.
 
 interactions:
 
@@ -351,16 +343,3 @@ known_gaps:
   - "Plasma sheet density at injection latitude — not directly observed at GEO"
   - "Substorm onset prediction lead time (currently retrospective in operations)"
   - "Energy-dependent dispersion of injected hot plasma across LT regions"
-
-# --- BUILD OPTIONS ---
-
-build:
-  initial_certainty: from_source
-  curiosity_threshold: 0.70
-  max_nodes: 200
-  target_device: edge_or_cloud
-  attribution: activity_weighted
-  baseline_construction: quiet_time_median
-  cross_domain_links:
-    - "../leo/prior.yaml"      # LEO precedent; shared upstream drivers
-                                # (DSCOVR/ACE solar wind, NOAA Kp/Dst)

@@ -1,10 +1,8 @@
 # nm validate config — LEO thermosphere density (space-atlas)
-# Endpoints, learning parameters, and validation strategy for the GRACE-FO-driven
-# causal-discovery pipeline.
 #
-# Reference integrity: every endpoint's `source:` field must resolve to a
-# providers[].id (or top-level sources entry id) in leo/prior.yaml. Cross-file
-# divergence will silently break the loop — audit when either file changes.
+# Endpoints for validation and error signals. Claude composes the validation
+# and learning pipelines via MCP; this file just lists what data is available
+# and where to find it.
 #
 # Cadence convention: ISO 8601 durations (PT10S, PT1H, P1D) with reserved
 # literals: static, event_driven, archive_pull, continuous.
@@ -21,7 +19,6 @@ provenance:
 domain: space-weather
 region_set: leo
 entity_scope: thermosphere-density-460-510km
-model_id: leo-space-atlas-v0.1
 
 # --- DATA ENDPOINTS ---
 
@@ -68,172 +65,3 @@ endpoints:
       method: backward_lag_per_edge
       tolerance_hours: 1
       note: "Per-edge backward lookup at obsTime - lag; fall back to ±1h if exact hour missing"
-
-  - name: voxels_v3_library
-    bucket: physics_prior
-    source: voxels_v3
-    protocol: file
-    endpoint: "../space-waze/lib/voxels-v3.js"
-    cadence: static
-    maps_to: [density_at_voxel]
-    role: static
-    notes: "PHYSICAL_DRIVERS, LATITUDE_BINS, LOCAL_TIME_BINS, getInitialMultiplier, getExpectedLag"
-
-  - name: dissipative_learning_lib
-    bucket: learning_engine
-    source: nm_lib
-    protocol: file
-    endpoint: "../space-waze/lib/dissipative-learning.js"
-    cadence: static
-    maps_to: []
-    role: static
-    notes: "computeLearningRate(Z), updateCertainty(Z, err, history), computeErrorSignal(obs, pred)"
-
-# --- LEARNING PARAMETERS ---
-# Mirrors learn-from-grace-fo.js. η(Z) provides adaptive learning rate.
-
-learning:
-  # ARCHITECTURAL COMMITMENT:
-  #
-  # The learning rate is a property of the EDGE being updated, not of the
-  # sensor providing the measurement. Each edge carries its own certainty Z
-  # and at each cycle computes η(Z, residual) — a sigmoid in current Z and
-  # observed prediction error. η rises when Z is low or residuals are large
-  # and falls as Z climbs and residuals shrink. The rate is dynamic and
-  # per-cycle.
-  #
-  # The source/bucket sets the PRIOR: starting Z (in prior.yaml) and the
-  # bounds of the sigmoid (eta_floor, eta_ceiling). It does not set the rate.
-  # Static per-source rates would collapse this into a Kalman-shaped
-  # weighted-average filter and lose the UQ behavior.
-  #
-  # This block is the SOURCE OF TRUTH — it mirrors the shipping
-  # learn-from-grace-fo.js / dissipative-learning.js loop. cislunar/validate.yaml
-  # references this file's behavior; reconcile that file's per-bucket bounds
-  # against the actual computeLearningRate path before external distribution.
-  rate_function: eta_z_residual
-  rate_owner: per_edge
-  rate_dynamic: true
-  formula: "η(Z, ε) — computed per edge per cycle from current Z and prediction error ε"
-  global_sigmoid_bounds:
-    eta_floor: 0.10
-    eta_ceiling: 0.90
-  initial_certainty: 0.30
-  convergence_threshold: 0.85
-  curiosity_threshold: 0.70
-  min_observations: 10
-  min_certainty_weight: 0.10          # FIX 8 — activity gating
-  history_window: 10
-  multiplier_bounds:
-    min: 0.5
-    max: 5.0
-  multiplier_update_scale: 0.1
-  attribution: activity_weighted       # FIX 7 — weight = |driver_value| / total_activity
-  prediction_combination: multiplicative
-  feedback_modes:
-    - auto_update                      # Z < 0.5
-    - weighted_update                  # 0.5 ≤ Z < 0.7
-    - flag_for_review                  # 0.7 ≤ Z < 0.85
-    - stable                           # Z ≥ 0.85
-
-# Implementation fixes carried forward from TLE v2 pipeline (do not regress):
-fixes_applied:
-  - id: 1
-    name: temporal_lag
-    description: "Density-centric, per-driver backward lookup of weather at obsTime - lag"
-  - id: 2
-    name: library_certainty
-    description: "Consistency-based certainty via updateCertainty"
-  - id: 3
-    name: symmetric_certainty_dynamics
-    description: "Increases and decreases use the same η-driven step"
-  - id: 4
-    name: activity_weighted_attribution_initial
-    description: "Initial allocation of error across simultaneously active drivers"
-  - id: 5
-    name: actual_observation_counts_per_edge
-    description: "Per-edge obs counts, not session-wide"
-  - id: 6
-    name: quiet_time_baseline
-    description: "Median over quiet-time observations (Dst > -30 and Bz > -5)"
-  - id: 7
-    name: activity_weighted_attribution_refined
-    description: "Refined weighting: |driver_value| / total_activity, with uniform fallback when activity < 0.01"
-  - id: 8
-    name: activity_gating
-    description: "Skip certainty update when attributed weight < MIN_CERTAINTY_WEIGHT = 0.10"
-
-# --- VALIDATION STRATEGY ---
-
-validation_steps:
-
-  - name: gracefo_dry_run_replay
-    description: "Replay full 2024-12 to 2025-12 GRACE-FO archive; reproduce dry-run JSON"
-    target: "Recover certainty distribution matching ../space-waze/results/learn-gracefo-dryrun-*.json"
-    duration: archive_replay
-    baseline_comparison:
-      dst: 0.490
-      imf_bz: 0.450
-      ae_index: 0.389
-      solar_wind_density: 0.196
-      solar_wind_speed: 0.132
-
-  - name: driver_certainty_ranking
-    description: "Verify Dst and IMF Bz emerge as highest-certainty drivers"
-    target: "Top-2 drivers by mean Z match expected physical ordering"
-
-  - name: per_edge_certainty_range
-    description: "Within each driver, examine voxel-level Z spread to identify spatially-coherent response patterns"
-    target: "AE shows strong high-latitude voxels (consistent with latitude filter); Dst shows broader voxel coverage"
-
-  - name: quiet_baseline_coverage
-    description: "Track fraction of voxels with ≥3 quiet observations vs fallback to all-time median"
-    target: "≥80% of voxels have a quiet-time baseline rather than fallback"
-
-  - name: storm_event_resolution
-    description: "Identify individual storm events in the archive; verify per-edge certainty curve responds during the event window"
-    target: "Visible certainty jump during storm main phase, recovery in 3-7 days"
-
-  - name: commercial_data_extension
-    description: "When Spire / Muon Space / GeoOptics GNSS-RO feeds become available, extend altitude coverage and re-fit"
-    target: "Add ≥2 altitude bins above and below the GRACE-FO band"
-    status: partnership_TBD
-
-# --- SUCCESS CRITERIA ---
-
-success:
-  reproducibility: "Re-running pipeline against the same archive yields identical per-edge final certainty within numerical tolerance"
-  certainty_lift: "Hourly-averaged GRACE-FO recovers ≥ TLE baseline certainty on all 5 drivers; ≥ +0.10 on the leading driver"
-  high_certainty_edges: "≥1 edge in the 0.80-0.95 'high' bin"
-  high_certainty_edges_basis: |
-    Reference: space_atlas_grace_fo_convergence_benchmark documented >91%
-    per-edge certainty on 97% of edges and >80% per-edge certainty on 100%
-    of edges using a single GPS-drag-residual error signal on this same
-    architecture. The criterion above is conservative relative to that
-    benchmark.
-  weather_coverage: "≥95% of observation hours have weather data within ±1h"
-  cross_domain_export: "LEO model state exportable as a prior contribution to cislunar transit-phase model"
-
-# --- DEPLOYMENT TARGET ---
-
-deployment:
-  target: cloud_or_edge
-  cloud_profile:
-    runtime: nodejs
-    storage: mongodb
-    artifact: "results/learn-gracefo-*.json"
-  edge_profile:
-    target_class: jetson-or-equivalent
-    power_budget: 25W
-    model_size_limit: 50MB
-    inference_subgraph: per_voxel_prediction
-  mcu_profile:
-    target_class: rad-hardened-mcu
-    power_budget: 5W
-    model_size_limit: 200KB
-    scope: "Single-altitude subgraph distilled from cloud model"
-  compile_format: onnx
-  fleet_sync:
-    protocol: https
-    interval: PT1H
-    payload_size: 4KB

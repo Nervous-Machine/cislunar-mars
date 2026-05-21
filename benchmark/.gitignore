@@ -1,0 +1,10 @@
+# Large intermediate data — regenerated from public archives (see README)
+*.jsonl
+*.csv
+*.png
+
+# But keep the committed result tables
+!results/*.md
+
+__pycache__/
+*.pyc

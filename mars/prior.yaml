@@ -1,29 +1,25 @@
 # nm prior config — Mars surface radiation environment
 #
-# Predicted observables (validated in mars/validate.yaml via MSL/Curiosity
-# RAD as direct error signal):
-#   - surface_dose_rate         — total ionizing dose rate at the surface
-#                                  (operational relevance: TID budgeting,
-#                                   future crew radiation exposure)
-#   - integral_charged_particle_flux  — high-energy charged particle flux at
-#                                  the surface (operational relevance: SEE
-#                                  risk for surface assets, biological dose
-#                                  spectrum estimation)
+# Sources for prior provisioning: external data, model documentation, and
+# expert priors Claude can draw on to inform the Mars prior beyond its own
+# training-data inference. Sensor endpoints live in mars/validate.yaml.
 #
-# Drivers form edges to predicted observables with bounded-low Z_0 by
-# epistemic kind. Sensor channels (MSL RAD, MAVEN archive, Mars Odyssey,
-# propagated heliospheric state) live in validate.yaml.
+# Predicted observables (the targets the prior is built for):
+#   - surface_dose_rate                — TID at the surface (TID budgeting,
+#                                         future crew radiation exposure)
+#   - integral_charged_particle_flux   — high-energy charged particle flux
+#                                         (SEE risk, biological dose spectrum)
 #
 # Driver-measurement context: MAVEN lost contact December 2025 and as of
 # March 2026 is "likely unrecoverable" per NASA. Phase I therefore uses
 # propagated heliospheric state from L1 measurements as live driver input,
-# with the 11-year MAVEN archive (2014-2025) supplying retrospective driver
-# state for storm-replay validation cycles. ESCAPADE arrives at Mars
-# September 2027 and becomes the Phase II live-driver replacement.
+# with the 11-year MAVEN archive (2014-2025) for retrospective driver state.
+# ESCAPADE arrives at Mars September 2027 and becomes the Phase II live-driver
+# replacement.
 #
 # Scale convention:
-#   linear  — multiplier learned in linear space (default)
-#   log     — multiplier learned in log space (SEP-driven edges spanning >2 OOM)
+#   linear  — multiplier in linear space (default)
+#   log     — multiplier in log space (SEP-driven edges spanning >2 OOM)
 
 version: "0.1"
 schema: nm-prior
@@ -214,10 +210,6 @@ driver_contributors:
     starting_certainty: 0.50
     description: "Expert priors — populated via Phase I SME engagement"
     sme_contact_slot: "Mars radiation / heliospheric physics SME — engagement pending"
-    candidate_contacts:
-      - "Rob Lillis (UC Berkeley SSL, ESCAPADE PI, Mars heliospheric physics) — established at SWWX 2026"
-      - "Don Hassler (SwRI, MSL RAD Principal Investigator)"
-      - "Shannon Curry (CU Boulder LASP, MAVEN PI)"
     drivers: []
 
   # --------------------------------------------------------------
@@ -262,8 +254,9 @@ state_indices:
       causal edge during prior composition.
 
 # --- INTERACTIONS ---
-# Multi-driver interactions the substrate should attend to during
-# activity-weighted attribution.
+# Known multi-driver interactions worth noting at prior-composition time.
+# These are not modeled as joint edges — they're hints for which per-edge
+# regime splits or extra context variables may be needed.
 
 interactions:
 
@@ -301,18 +294,3 @@ known_gaps:
   - "Dust storm onset prediction lead time (currently retrospective)"
   - "Mars-Sun magnetic connection longitude prediction (depends on solar wind speed propagation accuracy at Mars distance)"
   - "Secondary neutron contribution to surface dose (RAD measures dose; neutron spectrum is harder to disentangle from charged particle component)"
-
-# --- BUILD OPTIONS ---
-
-build:
-  initial_certainty: from_source
-  curiosity_threshold: 0.70
-  max_nodes: 150
-  target_device: edge_or_cloud
-  attribution: activity_weighted
-  baseline_construction: gcr_modulation_baseline_plus_seasonal_atmosphere
-  cross_domain_links:
-    - "../leo/prior.yaml"      # LEO precedent; shared SEP source mechanism
-    - "../geo/prior.yaml"      # GEO regime; shared SEP source mechanism;
-                                # Mars SEP arrival is propagated from same
-                                # source events that drive GEO proton flux

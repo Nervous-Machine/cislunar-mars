@@ -1,29 +1,15 @@
 # nm validate config — GEO energetic particle and field environment
 #
-# Defines HOW to validate the GEO prior: endpoints, learning parameters,
-# validation steps, success criteria.
-#
-# Reference integrity: every endpoint maps to a target_observable defined in
-# geo/prior.yaml. Driver inputs feed edges declared in geo/prior.yaml's
-# driver_contributors. No external validator enforces this — audit
-# cross-file references when either file changes.
+# Endpoints for validation and error signals. Claude composes the validation
+# and learning pipelines via MCP; this file just lists what data is available
+# and where to find it.
 #
 # Role taxonomy:
-#   direct_error_signal   — substrate predicts observable X; sensor measures X
-#                           directly at the same voxel and cadence. ε = |pred - meas|.
-#                           This is the strongest validation category.
-#   proxy_error_signal    — sensor measures a related observable that proxies for X
-#                           via a declared proxy_chain. Used when direct measurement
-#                           is unavailable. Required for cislunar regime; NOT needed
-#                           for GEO regime because direct measurement exists.
-#   input                 — driver measurement consumed at runtime. Feeds the
-#                           prediction; does NOT validate the prediction.
-#   prediction_baseline   — operational model output compared against direct
-#                           measurement for context. Error = |model - sensor|.
-#                           Not the substrate's primary validation signal.
-#   state_index           — derived index used for baseline construction and
-#                           storm-phase tagging. Not a driver, not an error signal.
-#                           See state_indices block in prior.yaml.
+#   direct_error_signal   — sensor measures the target observable directly
+#   proxy_error_signal    — sensor measures a related observable via a proxy chain
+#   input                 — driver measurement consumed at runtime
+#   prediction_baseline   — operational model output for comparison
+#   state_index           — derived index for phase tagging and baseline construction
 #
 # Cadence convention: ISO 8601 durations (PT60S, PT5M, PT1H, P1D) for time
 # intervals. Reserved literals: static, event_driven, archive_pull, continuous.
@@ -243,155 +229,4 @@ endpoints:
     format:
       fields: [timestamp, sw_speed_predicted, sw_density_predicted, cme_arrival_predicted]
     validation_discipline: model_output
-    notes: "ENLIL predicts L1 conditions; substrate uses for prediction-baseline error comparison"
-
-# --- LEARNING PARAMETERS ---
-
-learning:
-  # ARCHITECTURAL COMMITMENT (read this before reading the numbers below):
-  #
-  # Each edge in the causal graph carries its own certainty Z and its own
-  # dynamic learning rate η(Z, ε). η is computed PER CYCLE from the
-  # edge's current certainty and the observed prediction error — it is not
-  # a property of the sensor, the bucket, or the provider.
-  #
-  # The sigmoid is GLOBAL — a single function bounded between eta_floor
-  # and eta_ceiling. There are no per-source, per-bucket, or per-domain
-  # bands. η rises when Z is low or residuals are large; falls when Z is
-  # high and residuals are small.
-  #
-  # This is the architectural commitment that distinguishes the framework
-  # from a Kalman-shaped weighted-average filter. Static or bucketed
-  # learning rates would collapse it back into one.
-  #
-  # ADDITION FOR GEO (and future regimes with SEP-driven observables):
-  # Edges with target observables that span >2 orders of magnitude
-  # (proton flux during SEP events) learn in LOG SPACE. The sigmoid is
-  # the same; the multiplier update is applied to log(multiplier)
-  # rather than multiplier. Scale is declared per-edge in prior.yaml
-  # via the `scale:` field, inherited from the predicted_observable.
-
-  rate_function: eta_z_residual
-  formula: "η(Z, ε) ∈ [eta_floor, eta_ceiling]; rises with |ε| and with (1 - Z); falls with Z"
-  global_sigmoid_bounds:
-    eta_floor: 0.10
-    eta_ceiling: 0.90
-
-  scale_handling:
-    linear_edges: "multiplier_delta = η · attributed_error · 0.1"
-    log_edges:    "log_multiplier_delta = η · attributed_error_log · 0.1"
-    notes: |
-      Edges with scale=log apply the sigmoid update in log space.
-      For SEP-driven proton edges, this allows the multiplier to learn
-      across 4+ orders of magnitude without sigmoid saturation.
-
-  attribution: activity_weighted
-  attribution_min_weight: 0.10
-  baseline_construction:
-    method: quiet_time_median
-    quiet_time_criteria:
-      dst_threshold: -30      # > -30 nT
-      bz_threshold: -5        # > -5 nT
-    min_quiet_samples: 3
-    fallback: all_data_median
-
-  convergence_threshold: 0.85
-  curiosity_threshold: 0.70
-  min_observations_per_edge: 20
-  max_cycles_per_session: 100
-
-  feedback_modes:
-    - auto_update
-    - weighted_update
-    - flag_for_review
-    - stable
-
-  cross_domain_link:
-    leo_validate: "../leo/validate.yaml"
-    note: "GEO and LEO share upstream drivers (DSCOVR/ACE/SWPC); high-certainty driver-measurement edges transfer"
-
-# --- VALIDATION STRATEGY ---
-
-validation_steps:
-
-  - name: baseline_quiet_period
-    description: "Collect ≥30 days of GOES-R direct-error-signal feeds during geomagnetically quiet intervals (Dst > -30, Bz > -5)"
-    target: "Establish per-region per-observable baselines and noise envelopes"
-    duration: 30d
-    requires: [goes_seiss_epead_mev_electrons, goes_seiss_mps_lo_hot_plasma, goes_mag_b_field, swpc_dst, dscovr_imf]
-
-  - name: retrospective_storm_replay
-    description: "Replay 2024-2025 storm events; substrate predicts GEO observables from L1 drivers, compare to GOES-R measurement"
-    target: "Verify operational pipeline reproduces known storm response across all four observables"
-    requires:
-      - goes_seiss_epead_mev_electrons
-      - goes_seiss_sgps_protons_10mev
-      - goes_seiss_sgps_protons_50mev
-      - goes_seiss_mps_lo_hot_plasma
-      - goes_mag_b_field
-      - dscovr_solar_wind_plasma
-      - dscovr_imf
-    duration: 14d
-    storm_event_target_count: 30
-
-  - name: sep_event_replay
-    description: "Replay SEP events from 2024-2026 SWPC catalog; validate log-scale proton-flux edge learning"
-    target: "Verify substrate handles 2-4 OOM proton enhancements via log-scale learning without sigmoid saturation"
-    requires:
-      - goes_seiss_sgps_protons_10mev
-      - goes_seiss_sgps_protons_50mev
-      - swpc_sep_alerts
-    duration: 7d
-    notes: "SEP edges are sparse in the graph (only solar_proton_event drives them) — convergence pattern will differ from electron edges"
-
-  - name: model_vs_measurement
-    description: "Continuously compare ENLIL B-field predictions and AE9/AP9 climatology vs GOES-R measurement"
-    target: "Quantify operational-model error envelopes; tune prediction_baseline error attribution"
-    duration: continuous
-
-  - name: sme_engagement
-    description: "Engage NOAA SWPC and operational GEO community on surfaced curiosity triggers"
-    target: "Validate that substrate-surfaced research priorities are operationally meaningful"
-    duration: rolling
-    status: SME_engagement_pending
-
-# --- SUCCESS CRITERIA ---
-
-success:
-  convergence: "≥70% of edges with target_observable ∈ {electron observables, B-field} converge above Z=0.85 across combined retrospective and live validation cycles drawn from ≥30 storm/event windows"
-  convergence_basis: |
-    The Z=0.85 threshold is defensible from prior NM benchmark work:
-    GRACE-FO convergence benchmark recorded >91% per-edge certainty on
-    97% of edges and >80% on 100% of edges using a single direct error
-    signal on a structurally similar operational pipeline (LEO density
-    via GRACE-FO accelerometer). The 0.85 GEO target sits inside that
-    demonstrated envelope. Proton edges (SEP-driven, log-scale) are
-    held to a separate criterion below due to event-driven sparsity.
-  proton_edge_convergence: "Proton-flux edges (solar_proton_event → p_flux_gt_10mev, p_flux_gt_50mev) converge above Z=0.70 over ≥5 SEP events in the retrospective catalog"
-  retrospective_accuracy: "Replay of 2024-12 to 2026-04 storm season matches archived response within published error bars for ≥3 storm events per observable"
-  curiosity_resolved: "≥3 curiosity triggers resolved via SME engagement or additional driver hypothesis"
-  cross_domain: "LEO and GEO regimes share at least one validated high-certainty driver-input edge (e.g., DSCOVR Bz feeding both density and B-field magnitude predictions)"
-  schema_completeness: "All five predicted observables have ≥1 direct_error_signal endpoint and ≥1 driver_input endpoint operational"
-
-# --- DEPLOYMENT TARGET ---
-
-deployment:
-  target: edge_or_cloud
-  edge_profile:
-    target_class: jetson-or-equivalent
-    power_budget: 25W
-    model_size_limit: 50MB
-  cloud_profile:
-    target_class: container
-    sync_protocol: https
-    payload_size: variable
-  mcu_profile:
-    target_class: rad-hardened-mcu
-    power_budget: 5W
-    model_size_limit: 200KB
-    scope: "Distilled per-region inference subgraph only"
-  compile_format: onnx
-  fleet_sync:
-    protocol: https
-    interval: PT1H
-    payload_size: 10KB
+    notes: "ENLIL predicts L1 conditions; reference baseline for comparison"

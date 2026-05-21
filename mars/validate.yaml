@@ -1,28 +1,24 @@
 # nm validate config — Mars surface radiation environment
 #
-# Defines HOW to validate the Mars prior: endpoints, learning parameters,
-# validation steps, success criteria.
+# Endpoints for validation and error signals. Claude composes the validation
+# and learning pipelines via MCP; this file just lists what data is available
+# and where to find it.
 #
-# Reference integrity: every endpoint maps to a target_observable defined
-# in mars/prior.yaml. Driver inputs feed edges declared in mars/prior.yaml's
-# driver_contributors.
+# Driver-measurement context: MAVEN lost contact December 2025. Phase I Mars
+# validation runs MSL/Curiosity RAD as the live direct error signal for
+# surface dose and charged particle flux, with propagated heliospheric state
+# from L1 measurements (DSCOVR, ACE, SWPC alerts) as live driver input via
+# ENLIL/cone-model output. The MAVEN archive (2014-2025) supplies retrospective
+# driver state. ESCAPADE (arrival September 2027) is the Phase II live-driver
+# replacement.
 #
-# Driver-measurement context: MAVEN lost contact December 2025. Phase I
-# Mars validation runs MSL/Curiosity RAD as the live direct error signal
-# for surface dose and charged particle flux, with propagated heliospheric
-# state from L1 measurements (DSCOVR, ACE, SWPC alerts) as live driver
-# input via ENLIL/cone-model output. The MAVEN archive (2014-2025) supplies
-# retrospective driver state for storm-replay validation cycles. ESCAPADE
-# (arrival September 2027) is the Phase II live-driver replacement.
-#
-# Role taxonomy (same as GEO):
-#   direct_error_signal   — substrate predicts X; sensor measures X directly
-#   proxy_error_signal    — sensor measures related observable via proxy_chain
+# Role taxonomy:
+#   direct_error_signal   — sensor measures the target observable directly
+#   proxy_error_signal    — sensor measures related observable via proxy chain
 #   input                 — driver measurement consumed at runtime
-#   prediction_baseline   — operational model output for context comparison
-#   state_index           — baseline construction / phase tagging; not causal
-#   archived_input        — historical-only data, used for retrospective
-#                           validation cycles, not live operations
+#   prediction_baseline   — operational model output for comparison
+#   state_index           — derived index for phase tagging / baseline construction
+#   archived_input        — historical-only data, used for retrospective cycles
 
 version: "0.1"
 schema: nm-validate
@@ -122,8 +118,8 @@ endpoints:
     notes: |
       SWPC declares SEP events based on Earth-orbiting sensors. Mars arrival
       timing must be inferred from event source longitude and Mars heliographic
-      position. The substrate learns this propagation per event via the
-      activity_weighted attribution against MSL RAD response.
+      position. The per-event arrival-time edge is tested against MSL RAD
+      response.
 
   - name: enlil_cme_at_mars
     role: input
@@ -190,9 +186,9 @@ endpoints:
     notes: |
       MAVEN lost contact Dec 6, 2025. As of March 2026 NASA considers
       mission "likely unrecoverable" but archived data through Dec 2025
-      remains publicly available. Used for retrospective Phase I
-      validation cycles where direct Mars-distance driver measurement
-      improves residual attribution.
+      remains publicly available. Used for retrospective Phase I cycles
+      where direct Mars-distance driver measurement removes L1-propagation
+      uncertainty from per-edge residuals.
 
   - name: maven_imf_archive
     role: archived_input
@@ -274,7 +270,6 @@ endpoints:
     role: phase_i_partnership_target
     source: escapade_mission
     instrument: "EMAG, EESA, EIA, ELP across both spacecraft"
-    pi: "Rob Lillis (UC Berkeley SSL) — established SWWX 2026 contact"
     status_summary: |
       Launched Nov 13, 2025. Instruments operational since Feb 25, 2026.
       Currently loitering at Earth-Sun L2 with kidney-bean orbit extending
@@ -323,235 +318,3 @@ endpoints:
       cislunar passage windows, (2) collaboration on substrate framework
       for analyzing loiter-phase observations against L1 baselines, and
       (3) Phase II Mars-driver-measurement partnership architecture.
-
-# --- LEARNING PARAMETERS ---
-
-learning:
-  # ARCHITECTURAL COMMITMENT (same as GEO):
-  # Each edge carries its own Z and dynamic η(Z, ε). η is computed PER
-  # CYCLE from current certainty and observed prediction error — not a
-  # property of the sensor, bucket, or provider. The sigmoid is GLOBAL.
-  # No per-source bands. SEP-driven edges use log scale per the scale:
-  # field declared at the edge level in prior.yaml.
-
-  rate_function: eta_z_residual
-  formula: "η(Z, ε) ∈ [eta_floor, eta_ceiling]; rises with |ε| and (1 - Z); falls with Z"
-  global_sigmoid_bounds:
-    eta_floor: 0.10
-    eta_ceiling: 0.90
-
-  scale_handling:
-    linear_edges: "multiplier_delta = η · attributed_error · 0.1"
-    log_edges:    "log_multiplier_delta = η · attributed_error_log · 0.1"
-    notes: "Same scale convention as GEO regime"
-
-  attribution: activity_weighted
-  attribution_min_weight: 0.10
-
-  baseline_construction:
-    method: gcr_modulation_baseline_plus_seasonal_atmosphere
-    quiet_time_criteria:
-      no_sep_event_within_hours: 72
-      no_cme_arrival_within_hours: 48
-      gcr_modulation_state: "current_cycle_phase"
-    seasonal_baseline:
-      method: per_ls_voxel_median
-      min_quiet_samples_per_voxel: 30
-    fallback: full_archive_median
-    notes: |
-      Mars baseline is more complex than LEO/GEO because the quiet-time
-      dose floor itself varies with both solar cycle (GCR modulation) and
-      Mars season (atmospheric column density). Baseline construction
-      computes per-voxel quiet-time median, then learns event-driven
-      multipliers against that baseline.
-
-  convergence_threshold: 0.85
-  curiosity_threshold: 0.70
-  min_observations_per_edge: 15
-  max_cycles_per_session: 100
-
-  feedback_modes:
-    - auto_update
-    - weighted_update
-    - flag_for_review
-    - stable
-
-  cross_domain_link:
-    geo_validate: "../geo/validate.yaml"
-    note: |
-      Mars and GEO share SEP source mechanism. High-certainty edges from
-      GEO's solar_proton_event → p_flux_gt_10mev pathway transfer with
-      adjusted propagation lag to Mars's solar_proton_event_at_mars →
-      surface_dose_rate pathway. Cross-regime transfer is a Phase I
-      success criterion.
-
-# --- VALIDATION STRATEGY ---
-
-validation_steps:
-
-  - name: baseline_quiet_period
-    description: "Collect ≥60 sols (Martian days) of MSL RAD measurements during quiet-time periods within each Ls voxel"
-    target: "Establish per-voxel GCR-baseline dose rate and seasonal atmospheric envelope"
-    duration: variable
-    requires: [msl_rad_dose_rate, msl_rad_charged_particle_spectrum, mars_atmospheric_column_climatology, solar_cycle_phase]
-    notes: "Phase I window covers only one Ls voxel live; retrospective MSL archive (2012-2026) covers all voxels across multiple Mars years"
-
-  - name: maven_archive_edge_learning
-    description: |
-      Learn physics edges (driver → dose rate, driver → charged particle flux)
-      using MAVEN's direct Mars-distance measurements as ground-truth driver
-      state. Substrate consumes MAVEN SWIA + MAG + SEP archives as direct
-      upstream measurement; learns multiplier and lag for each edge against
-      MSL RAD response over the 2014-2025 paired archive period.
-    target: |
-      Establish high-Z physics edges using clean (no propagation in the loop)
-      driver state. Structurally identical to GRACE-FO learning at LEO:
-      direct upstream measurement + direct surface response → converged
-      causal edges. This is the substrate's primary edge-learning phase
-      for Mars; propagation-model accuracy is addressed in subsequent steps.
-    requires:
-      - msl_rad_dose_rate
-      - msl_rad_charged_particle_spectrum
-      - maven_solar_wind_archive
-      - maven_imf_archive
-      - maven_sep_archive
-    duration: 30d
-    sep_event_target_count: 15
-    notes: |
-      MAVEN archive provides the same role at Mars that GRACE-FO provided
-      at LEO and GOES provides at GEO: direct upstream + direct surface,
-      paired across years of observations. Phase I leverages this paired
-      dataset to converge the physics edges before introducing propagation
-      uncertainty in subsequent steps.
-
-  - name: propagation_residual_measurement
-    description: |
-      Apply the MAVEN-archive-converged edges to L1-propagated driver state
-      (live operation equivalent) and measure the residual against MSL RAD.
-      Since the physics edges are already converged, the residual now isolates
-      propagation-model error specifically.
-    target: |
-      Quantify the residual contribution attributable to L1-to-Mars
-      propagation uncertainty, separated from physics-edge error. Produces
-      a Phase II forward specification: which Mars edges are propagation-
-      limited and how much precision improvement ESCAPADE direct measurement
-      would provide.
-    requires:
-      - msl_rad_dose_rate
-      - msl_rad_charged_particle_spectrum
-      - enlil_solar_wind_at_mars
-      - swpc_sep_alerts_mars_relevant
-      - enlil_cme_at_mars
-    duration: continuous_during_phase_i
-    notes: |
-      This step is the live Phase I validation cycle. It does NOT learn
-      new physics edges; those came from maven_archive_edge_learning.
-      Its purpose is the propagation-residual quantification — the
-      cleanest possible specification of what Phase II ESCAPADE access
-      would unlock.
-
-  - name: escapade_partnership_data_integration
-    description: |
-      Conditional on Rob Lillis engagement: integrate ESCAPADE loiter-phase
-      data (Feb 2026-Nov 2026) for L1-to-L2 propagation validation, near-
-      moon-passage measurements for cislunar gap reduction, and distant-
-      magnetotail observations for GEO substorm-physics constraint.
-    target: |
-      Reduce Phase I limitations using ESCAPADE loiter-phase observations
-      where partnership access is established. Produces partnership-
-      contingent improvements to cislunar regime and GEO regime in addition
-      to Mars-relevant propagation validation.
-    requires: [escapade_blue_gold_partnership]
-    duration: rolling
-    status: partnership_engagement_pending
-    notes: |
-      Highly leveraged step if partnership materializes. Substrate value
-      to ESCAPADE team: per-edge UQ framework for analyzing loiter-phase
-      observations. Value to NM: sparse direct cislunar measurement and
-      Phase II forward Mars partnership.
-
-  - name: cross_regime_transfer
-    description: "Identify high-certainty edges from GEO regime that transfer to Mars regime with adjusted propagation lag"
-    target: "Demonstrate fleet learning across regime instances"
-    requires: ["../geo/validate.yaml"]
-    duration: rolling
-    notes: "Specifically: GEO solar_proton_event → p_flux edges transfer to Mars solar_proton_event_at_mars → surface_dose_rate edges with lag adjustment"
-
-  - name: sme_engagement
-    description: "Engage Mars radiation and heliospheric physics SMEs on surfaced curiosity triggers"
-    target: "Validate substrate-surfaced research priorities are operationally meaningful"
-    duration: rolling
-    status: engagement_pending
-    candidate_engagement: ["Rob Lillis (UCB SSL)", "Don Hassler (SwRI)", "Shannon Curry (CU LASP)"]
-
-# --- SUCCESS CRITERIA ---
-
-success:
-  edge_convergence_via_maven_archive: |
-    ≥70% of edges with target_observable ∈ {surface_dose_rate,
-    integral_charged_particle_flux} converge above Z=0.85 when learned
-    against MAVEN-archived direct Mars-distance driver state paired with
-    MSL RAD response over the 2014-2025 archive period. Structurally
-    analogous to GRACE-FO LEO convergence: direct upstream + direct
-    surface response → clean physics-edge learning.
-  convergence_basis: |
-    The Z=0.85 threshold is consistent with GRACE-FO LEO convergence
-    (>91% per-edge certainty on 97% of edges, >80% on 100%) and GEO
-    regime targets. MAVEN-archive learning environment is methodologically
-    parallel to GRACE-FO: direct upstream measurement (MAVEN at Mars)
-    + direct surface response (MSL RAD) → no propagation in the loop.
-  retrospective_accuracy: |
-    Replay of ≥15 SEP events from 2014-2025 archive period reproduces
-    MSL RAD-measured dose enhancement within published error bars for
-    at least 50% of events. Residuals on remaining events surface as
-    curiosity triggers for hypothesis revision.
-  propagation_residual_quantification: |
-    After MAVEN-archive edges converge, applying the same edges to
-    L1-propagated driver state produces a quantified propagation-induced
-    residual against MSL RAD live measurement. This becomes the Phase II
-    forward specification: which Mars edges are propagation-limited and
-    how much precision improvement ESCAPADE direct measurement would
-    unlock. This is a primary Phase I deliverable.
-  curiosity_resolved: "≥2 curiosity triggers resolved via SME engagement or driver hypothesis revision"
-  cross_regime: "At least one validated high-certainty edge transfers from GEO regime to Mars regime via SEP source mechanism"
-  partnership_contingent_outcomes:
-    description: |
-      Conditional on ESCAPADE partnership engagement (Phase I Task 3.3),
-      additional outcomes become possible. These are partnership-
-      contingent rather than baseline Phase I commitments.
-    cislunar_gap_reduction: |
-      ESCAPADE near-moon-passage data turns cislunar from pure proxy
-      validation into sparse-direct + proxy validation for the passes
-      where data exists.
-    l1_l2_propagation_validation: |
-      L1-to-L2 propagation accuracy quantified using ESCAPADE-position
-      vs DSCOVR comparison, informing the larger L1-to-Mars propagation
-      residual analysis.
-    geo_substorm_constraint: |
-      Distant-magnetotail observations constrain field-line-stretching
-      physics in GEO regime's pre-midnight growth phase voxel; addresses
-      substorm onset prediction gap in GEO known_gaps.
-
-# --- DEPLOYMENT TARGET ---
-
-deployment:
-  target: edge_or_cloud
-  edge_profile:
-    target_class: jetson-or-equivalent
-    power_budget: 25W
-    model_size_limit: 50MB
-  cloud_profile:
-    target_class: container
-    sync_protocol: https
-    payload_size: variable
-  mcu_profile:
-    target_class: rad-hardened-mcu
-    power_budget: 5W
-    model_size_limit: 200KB
-    scope: "Distilled per-voxel inference subgraph only"
-  compile_format: onnx
-  fleet_sync:
-    protocol: https
-    interval: PT6H
-    payload_size: 10KB
-    notes: "Slower sync interval than GEO regime due to interplanetary latency considerations for future on-orbit deployment scenarios"

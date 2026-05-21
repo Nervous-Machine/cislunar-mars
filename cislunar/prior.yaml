@@ -1,44 +1,30 @@
 # nm prior config — cislunar space radiation and particle/field environment
 #
-# Predicted observables (validated in cislunar/validate.yaml via direct
-# error signals from existing operational and archive sources):
+# Sources for prior provisioning: external data, model documentation, and
+# expert priors Claude can draw on to inform the cislunar prior beyond its
+# own training-data inference. Sensor endpoints live in cislunar/validate.yaml.
 #
-#   - cislunar_dose_rate         — total ionizing dose rate at lunar orbit
-#                                   (operational relevance: Artemis crew dose,
-#                                    CLPS lander hardware TID budgeting)
-#   - cislunar_particle_field    — IMF and energetic particle environment
-#                                   in cislunar space (operational relevance:
-#                                    SEE risk during transit, surface charging,
-#                                    upstream driver state for substrate)
-#   - lunar_surface_dose         — surface dose rate at lunar locations
-#                                   (operational relevance: future crew
-#                                    surface operations; currently validated
-#                                    only at Chang'E 4 site)
+# Predicted observables (the targets the prior is built for):
+#   - cislunar_dose_rate       — TID at lunar orbit (Artemis crew, CLPS hardware)
+#   - cislunar_particle_field  — IMF + energetic particle environment in
+#                                 cislunar space (SEE risk, surface charging)
+#   - lunar_surface_dose       — surface dose at lunar locations (currently
+#                                 validated only at Chang'E 4 site)
 #
-# Methodological note: cislunar is a CONVERGENCE regime in Phase I, not a
-# measurement-gap regime. CRaTER on LRO has measured lunar-orbit dose rate
-# continuously since June 2009 (~17 years). THEMIS-ARTEMIS P1 and P2 have
-# measured cislunar fields and particles continuously since 2011 (~15 years,
-# both still operational). Chang'E 4 LND has measured lunar surface dose
-# since January 2019. All sources are publicly archived and paired with the
-# same L1 driver measurements (DSCOVR, ACE, NOAA SWPC) used by the GEO and
-# LEO regimes. The substrate's Phase I contribution is the causal-learning
-# use of this paired data, which has not been done for per-edge UQ
-# previously despite the data's existence.
+# Cislunar is a CONVERGENCE regime in Phase I, not a measurement-gap regime.
+# CRaTER on LRO (2009-present, ~17 years), THEMIS-ARTEMIS P1/P2 (2011-present,
+# ~15 years), and Chang'E 4 LND (2019-present) provide paired direct
+# measurement against the same L1 drivers used at GEO and LEO. Remaining
+# genuine measurement gaps are documented in measurement_gaps at the end of
+# this file.
 #
-# Remaining genuine measurement gaps (addressed in Phase II via CLPS
-# partnership) are documented in the measurement_gaps block at the end —
-# specific unresolved questions, not full-regime absence.
-#
-# Voxel granularity is provisional. Three physics-region voxels by
-# magnetospheric shielding regime are the coarsest decomposition known
-# physics supports. Subdivision criteria are declared per region; finer
-# voxelization is a curiosity-trigger-driven evolution as direct
-# measurements drive convergence.
+# Voxel granularity is provisional: three physics-region voxels by
+# magnetospheric shielding regime. Subdivision criteria are declared per
+# region.
 #
 # Scale convention:
-#   linear  — multiplier learned in linear space (default)
-#   log     — multiplier learned in log space (SEP-driven edges >2 OOM)
+#   linear  — multiplier in linear space (default)
+#   log     — multiplier in log space (SEP-driven edges >2 OOM)
 
 version: "0.1"
 schema: nm-prior
@@ -267,11 +253,6 @@ driver_contributors:
     starting_certainty: 0.50
     description: "Expert priors — populated via Phase I SME engagement"
     sme_contact_slot: "Cislunar radiation and lunar mission SME — engagement pending"
-    candidate_contacts:
-      - "Nathan Schwadron (UNH, CRaTER lead scientist)"
-      - "Vassilis Angelopoulos (UCLA, THEMIS-ARTEMIS PI)"
-      - "Rob Lillis (UC Berkeley SSL, ESCAPADE PI) — established SWWX 2026 contact"
-      - "Tzu-Wei Fang (NOAA SWPC, SWWX 2026 lunar mission panel)"
     drivers: []
 
   # --------------------------------------------------------------
@@ -414,18 +395,3 @@ known_gaps:
   - "Lunar regolith composition variability effect on albedo dose contribution"
   - "Trapped radiation belt response during major storms (CRaTER samples but does not optimize for inner magnetospheric voxel)"
   - "Spatial resolution within physics-region voxels (provisional 3-region grid; subdivision criteria declared per region)"
-
-# --- BUILD OPTIONS ---
-
-build:
-  initial_certainty: from_source
-  curiosity_threshold: 0.70
-  max_nodes: 200
-  target_device: edge_or_cloud
-  attribution: activity_weighted
-  baseline_construction: quiet_time_with_gcr_modulation
-  cross_domain_links:
-    - "../leo/prior.yaml"      # shared upstream drivers (DSCOVR/ACE/SWPC)
-    - "../geo/prior.yaml"      # shared SEP source mechanism; magnetospheric
-                                # state for inner_magnetospheric voxel
-    - "../mars/prior.yaml"     # shared SEP source mechanism
