@@ -9,14 +9,14 @@ Falsifiable: a random-sign learner would hit ~50% on signed expectations. A fram
 | Category | Count |
 |---|---|
 | Edges with a prior expectation | 114 |
-| Converged (Z ≥ 0.85) | 56 |
+| Converged (Z ≥ 0.85) | 57 |
 | — of which, signed (±) edges | 27 |
-| — — sign correct | **9** (33.3%) |
-| — — sign wrong | 18 |
-| — of which, null-expected edges | 29 |
-| — — null held (|W| ≤ 0.10) | **17** (58.6%) |
-| — — null violated | 12 |
-| Unconverged (Z < 0.85) | 58 |
+| — — sign correct | **8** (29.6%) |
+| — — sign wrong | 19 |
+| — of which, null-expected edges | 30 |
+| — — null held (|W| ≤ 0.10) | **20** (66.7%) |
+| — — null violated | 10 |
+| Unconverged (Z < 0.85) | 57 |
 
 ## Per-driver hit rate (signed edges only)
 
@@ -30,7 +30,7 @@ Falsifiable: a random-sign learner would hit ~50% on signed expectations. A fram
 | `kp_index` | 0 | 0 | 0 | — |
 | `dst` | 4 | 2 | 0 | 67% |
 | `sw_speed` | 0 | 0 | 0 | — |
-| `sw_density` | 2 | 2 | 2 | 50% |
+| `sw_density` | 1 | 3 | 2 | 25% |
 | `imf_bt` | 0 | 0 | 0 | — |
 
 ## Worked examples of converged edges
@@ -41,11 +41,10 @@ Falsifiable: a random-sign learner would hit ~50% on signed expectations. A fram
 |---|---|---|---|
 | `sw_density|lt_0_4|b_field_magnitude` | 1.00 | +0.293 | + |
 | `dst|lt_4_8|b_field_magnitude` | 1.00 | -0.215 | − |
-| `sw_density|lt_16_20|b_field_magnitude` | 1.00 | +0.195 | + |
 | `dst|lt_8_12|b_field_magnitude` | 1.00 | -0.121 | − |
-| `dst|lt_12_16|b_field_magnitude` | 1.00 | -0.022 | − |
-| `dst|lt_20_24|b_field_magnitude` | 1.00 | -0.019 | − |
+| `dst|lt_12_16|b_field_magnitude` | 1.00 | -0.024 | − |
 | `geomag_storm|lt_4_8|b_field_magnitude` | 1.00 | -0.019 | − |
+| `dst|lt_20_24|b_field_magnitude` | 1.00 | -0.010 | − |
 | `sep_proton|lt_8_12|p_flux_gt_50mev` | 1.00 | +0.007 | + |
 | `sep_proton|lt_4_8|p_flux_gt_50mev` | 1.00 | +0.003 | + |
 
@@ -53,20 +52,20 @@ Falsifiable: a random-sign learner would hit ~50% on signed expectations. A fram
 
 | Edge | Z | W | expected |
 |---|---|---|---|
-| `sw_density|lt_12_16|b_field_magnitude` | 1.00 | -0.302 | + |
+| `sw_density|lt_12_16|b_field_magnitude` | 1.00 | -0.316 | + |
+| `geomag_storm|lt_16_20|b_field_magnitude` | 1.00 | +0.177 | − |
 | `geomag_storm|lt_20_24|b_field_magnitude` | 1.00 | +0.171 | − |
 | `geomag_storm|lt_0_4|b_field_magnitude` | 1.00 | +0.167 | − |
-| `geomag_storm|lt_16_20|b_field_magnitude` | 1.00 | +0.154 | − |
-| `sep_proton|lt_12_16|p_flux_gt_10mev` | 1.00 | -0.124 | + |
-| `geomag_storm|lt_12_16|b_field_magnitude` | 1.00 | +0.123 | − |
+| `geomag_storm|lt_12_16|b_field_magnitude` | 1.00 | +0.138 | − |
+| `sep_proton|lt_12_16|p_flux_gt_10mev` | 1.00 | -0.113 | + |
 | `sep_proton|lt_16_20|p_flux_gt_10mev` | 1.00 | -0.102 | + |
 | `sep_proton|lt_8_12|p_flux_gt_10mev` | 1.00 | -0.099 | + |
-| `sw_density|lt_20_24|b_field_magnitude` | 1.00 | -0.082 | + |
+| `sep_proton|lt_16_20|p_flux_gt_50mev` | 1.00 | -0.086 | + |
 | `sep_proton|lt_4_8|p_flux_gt_10mev` | 1.00 | -0.075 | + |
-| `dst|lt_16_20|b_field_magnitude` | 1.00 | +0.052 | − |
-| `sep_proton|lt_16_20|p_flux_gt_50mev` | 1.00 | -0.046 | + |
-| `sep_proton|lt_12_16|p_flux_gt_50mev` | 1.00 | -0.045 | + |
-| `sep_proton|lt_20_24|p_flux_gt_10mev` | 1.00 | -0.039 | + |
+| `sw_density|lt_20_24|b_field_magnitude` | 1.00 | -0.073 | + |
+| `sep_proton|lt_20_24|p_flux_gt_10mev` | 1.00 | -0.040 | + |
+| `sep_proton|lt_12_16|p_flux_gt_50mev` | 1.00 | -0.039 | + |
+| `dst|lt_16_20|b_field_magnitude` | 1.00 | +0.038 | − |
 | `sep_proton|lt_0_4|p_flux_gt_10mev` | 1.00 | -0.020 | + |
 
 ### Null-violated (no expected coupling, but |W| > 0.10)
@@ -74,17 +73,15 @@ Falsifiable: a random-sign learner would hit ~50% on signed expectations. A fram
 | Edge | Z | W |
 |---|---|---|
 | `mgii_index|lt_4_8|b_field_magnitude` | 1.00 | +0.766 |
-| `sep_proton|lt_16_20|b_field_magnitude` | 1.00 | +0.415 |
-| `mgii_index|lt_12_16|b_field_magnitude` | 1.00 | +0.406 |
+| `mgii_index|lt_12_16|b_field_magnitude` | 1.00 | +0.388 |
+| `sep_proton|lt_16_20|b_field_magnitude` | 1.00 | +0.358 |
 | `sep_proton|lt_0_4|b_field_magnitude` | 1.00 | +0.199 |
+| `mgii_index|lt_20_24|p_flux_gt_10mev` | 1.00 | -0.198 |
 | `mgii_index|lt_0_4|p_flux_gt_10mev` | 1.00 | -0.195 |
-| `mgii_index|lt_20_24|p_flux_gt_10mev` | 1.00 | -0.195 |
-| `sep_proton|lt_12_16|b_field_magnitude` | 1.00 | -0.148 |
+| `sep_proton|lt_12_16|b_field_magnitude` | 1.00 | -0.146 |
 | `mgii_index|lt_8_12|p_flux_gt_10mev` | 1.00 | -0.122 |
-| `mgii_index|lt_16_20|p_flux_gt_50mev` | 0.98 | -0.116 |
-| `sep_proton|lt_20_24|b_field_magnitude` | 1.00 | +0.111 |
+| `sep_proton|lt_20_24|b_field_magnitude` | 1.00 | +0.119 |
 | `mgii_index|lt_4_8|p_flux_gt_10mev` | 0.93 | -0.108 |
-| `mgii_index|lt_20_24|p_flux_gt_50mev` | 0.99 | -0.102 |
 
 ## Why this is falsifiable
 
@@ -98,6 +95,6 @@ Random sign assignment would yield ≈50% sign-correct on the 27 signed-st edges
 
 **`dst → b_field_magnitude`** (4/6 voxels correct = 67%): Dst is definitionally a ring-current measurement; its same-step coupling to GEO B-field reduction during storms is the most direct in-window test, and it converges with the expected negative W.
 
-**Null-held rate** (59%): edges with no expected coupling stay with |W| ≤ 0.10 at significantly above-chance rates, indicating the framework isn't fabricating couplings.
+**Null-held rate** (67%): edges with no expected coupling stay with |W| ≤ 0.10 at significantly above-chance rates, indicating the framework isn't fabricating couplings.
 
 **Variance reduction** (see `internal_comparator.md`): residual variance reduced 82.9% on B-field and 34.8% on warm plasma — strong same-window evidence of useful learned coupling, even where the sign-decomposition doesn't isolate it edge-by-edge.

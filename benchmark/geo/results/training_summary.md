@@ -1,16 +1,16 @@
 # GEO benchmark — training summary
 
-Generated 2026-06-05T18:42:08.338453+00:00
-Window: 2026-05-29T18:30:00Z → 2026-06-05T18:27:00Z  (7-day SWPC primary feed, GOES-19)
+Generated 2026-06-05T18:44:56.403606+00:00
+Window: 2026-05-29T18:44:00Z → 2026-06-05T18:42:00Z  (7-day SWPC primary feed, GOES-19)
 Voxels: 6 LT bins  ·  Observables: 5  ·  Drivers: 12
-Edges initialized: 360  ·  Updates applied: 175,450
+Edges initialized: 360  ·  Updates applied: 175,490
 
 ## Z distribution after one streaming pass
 
 | Statistic | Value |
 |---|---|
-| Edges Z ≥ 0.85 (curiosity-converged) | 208 / 360 |
-| Edges Z < 0.30 (below initial prior) | 41 / 360 |
+| Edges Z ≥ 0.85 (curiosity-converged) | 209 / 360 |
+| Edges Z < 0.30 (below initial prior) | 47 / 360 |
 | Median Z | 1.000 |
 | W range (min … max) | -0.438 … +0.829 |
 
@@ -22,7 +22,7 @@ Edges initialized: 360  ·  Updates applied: 175,450
 | p_flux_gt_10mev | 72 | 1.000 |
 | p_flux_gt_50mev | 72 | 1.000 |
 | b_field_magnitude | 72 | 1.000 |
-| e_flux_warm_plasma | 72 | 0.440 |
+| e_flux_warm_plasma | 72 | 0.420 |
 
 ## Next-stage analyses
 

@@ -8,11 +8,11 @@ Residuals are in log10 space for flux observables (multiplicative composition) a
 
 | Observable | n | var(baseline) | var(evolved) | reduction |
 |---|---|---|---|---|
-| `b_field_magnitude` | 9,848 | 120.6 | 20.67 | +82.9% |
-| `e_flux_gt_2mev` | 2,015 | 0.06396 | 0.06017 | +5.9% |
-| `e_flux_warm_plasma` | 2,014 | 0.1122 | 0.07313 | +34.8% |
-| `p_flux_gt_10mev` | 1,966 | 0.003212 | 0.002885 | +10.2% |
-| `p_flux_gt_50mev` | 1,966 | 0.001952 | 0.001865 | +4.5% |
+| `b_field_magnitude` | 9,849 | 120.5 | 20.27 | +83.2% |
+| `e_flux_gt_2mev` | 2,015 | 0.06398 | 0.06035 | +5.7% |
+| `e_flux_warm_plasma` | 2,015 | 0.1123 | 0.07286 | +35.1% |
+| `p_flux_gt_10mev` | 1,967 | 0.003209 | 0.002884 | +10.1% |
+| `p_flux_gt_50mev` | 1,967 | 0.001953 | 0.001869 | +4.3% |
 
 ## 2×2 contingency — framework flag vs prior-W baseline wrong
 
@@ -23,16 +23,16 @@ Self-reference comparator: any precision lift here is from learned driver coupli
 
 |  | baseline wrong | baseline ok |
 |---|---|---|
-| **framework flag** | 333 | 403 |
-| framework quiet | 819 | 16,254 |
+| **framework flag** | 338 | 401 |
+| framework quiet | 814 | 16,260 |
 
 | Metric | Value |
 |---|---|
-| Precision | **45.24%** |
-| Recall | 28.91% |
+| Precision | **45.74%** |
+| Recall | 29.34% |
 | Base rate (P(baseline wrong)) | 6.47% |
-| Lift over base rate | **6.99×** |
+| Lift over base rate | **7.07×** |
 
-Interpretation: when the framework flags an observation, the prior-W baseline prediction is ≥2.0σ wrong **45.2%** of the time — 7.0× the background rate at which the baseline is wrong.
+Interpretation: when the framework flags an observation, the prior-W baseline prediction is ≥2.0σ wrong **45.7%** of the time — 7.1× the background rate at which the baseline is wrong.
 
-Window: 7 days SWPC rolling. 17,809 (timestamp, voxel) records classified.
+Window: 7 days SWPC rolling. 17,813 (timestamp, voxel) records classified.
