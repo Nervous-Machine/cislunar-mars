@@ -1,0 +1,362 @@
+{
+  "imf_bz_l1|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "imf_bz_l1|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "imf_bz_l1|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.44,
+    "W": -0.3502,
+    "n": 154
+  },
+  "imf_bz_l1|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.63,
+    "W": 0.3941,
+    "n": 154
+  },
+  "imf_bz_l1|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 0.84,
+    "W": 0.1156,
+    "n": 1062
+  },
+  "imf_bz_l1|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.5994,
+    "n": 1062
+  },
+  "imf_bt_l1|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "imf_bt_l1|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "imf_bt_l1|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.84,
+    "W": -0.0796,
+    "n": 104
+  },
+  "imf_bt_l1|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.019,
+    "n": 104
+  },
+  "imf_bt_l1|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.5475,
+    "n": 1034
+  },
+  "imf_bt_l1|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0001,
+    "n": 1034
+  },
+  "sw_speed|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sw_speed|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sw_speed|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0096,
+    "n": 136
+  },
+  "sw_speed|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.0029,
+    "n": 136
+  },
+  "sw_speed|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0308,
+    "n": 1076
+  },
+  "sw_speed|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0764,
+    "n": 1076
+  },
+  "sw_density|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sw_density|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sw_density|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.99,
+    "W": 0.0506,
+    "n": 127
+  },
+  "sw_density|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.0038,
+    "n": 127
+  },
+  "sw_density|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 0.61,
+    "W": -0.0546,
+    "n": 1077
+  },
+  "sw_density|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.0091,
+    "n": 1077
+  },
+  "sw_dynamic_pressure|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sw_dynamic_pressure|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sw_dynamic_pressure|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.45,
+    "W": 0.4122,
+    "n": 152
+  },
+  "sw_dynamic_pressure|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.68,
+    "W": -0.2947,
+    "n": 152
+  },
+  "sw_dynamic_pressure|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 0.8,
+    "W": 0.0549,
+    "n": 1056
+  },
+  "sw_dynamic_pressure|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.2632,
+    "n": 1056
+  },
+  "sep_proton|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sep_proton|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sep_proton|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.0054,
+    "n": 93
+  },
+  "sep_proton|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0002,
+    "n": 93
+  },
+  "sep_proton|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0702,
+    "n": 527
+  },
+  "sep_proton|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0394,
+    "n": 527
+  },
+  "kp_index|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "kp_index|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "kp_index|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "kp_index|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "kp_index|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "kp_index|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "dst_index|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "dst_index|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "dst_index|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0445,
+    "n": 154
+  },
+  "dst_index|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.001,
+    "n": 154
+  },
+  "dst_index|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.1632,
+    "n": 1012
+  },
+  "dst_index|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.0114,
+    "n": 1012
+  },
+  "f107|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "f107|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "f107|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.0,
+    "W": 0.2835,
+    "n": 133
+  },
+  "f107|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.0,
+    "W": -0.1622,
+    "n": 133
+  },
+  "f107|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.1297,
+    "n": 1211
+  },
+  "f107|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0456,
+    "n": 1211
+  },
+  "ap|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "ap|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "ap|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.49,
+    "W": 0.2408,
+    "n": 85
+  },
+  "ap|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.52,
+    "W": -0.0035,
+    "n": 85
+  },
+  "ap|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 1.0,
+    "W": 0.0985,
+    "n": 923
+  },
+  "ap|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 1.0,
+    "W": -0.004,
+    "n": 923
+  },
+  "flare_xclass|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|inner_magnetospheric|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|inner_magnetospheric|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|magnetotail_transit|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|magnetotail_transit|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|outer_lunar_vicinity|imf_btot_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|outer_lunar_vicinity|imf_bz_at_lunar_distance": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  }
+}
