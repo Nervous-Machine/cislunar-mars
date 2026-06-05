@@ -173,16 +173,19 @@ def main():
         day += timedelta(days=1)
     print(f"  fetched: ok={n_ok}  cached={n_cached}  fail={n_fail}  ({time.time()-t0:.1f}s)")
 
-    # Parse all days, build hourly series
+    # Parse all .nc files in PROTON_DIR — accumulates across multiple
+    # fetch runs so the output JSONL covers the union of all windows
+    # ever fetched, not just the current invocation.
+    all_paths = sorted(PROTON_DIR.glob("g18_*.nc"))
     all_samples = []
-    for p in nc_paths:
+    for p in all_paths:
         try:
             all_samples.extend(parse_day(p))
         except Exception as e:
             print(f"  parse fail {p.name}: {e}")
 
     hourly = hourly_max(all_samples)
-    print(f"  {len(all_samples):,} 5-min samples → {len(hourly):,} hourly max records")
+    print(f"  {len(all_paths):,} cached .nc files → {len(all_samples):,} 5-min samples → {len(hourly):,} hourly max records")
 
     # Write JSONL
     with OUT.open("w") as f:

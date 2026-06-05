@@ -1,13 +1,13 @@
 {
   "f107|ls_0_90|surface_dose_rate": {
     "Z": 1.0,
-    "W": 0.0867,
-    "n": 947
+    "W": -0.1163,
+    "n": 8782
   },
   "f107|ls_90_180|surface_dose_rate": {
     "Z": 1.0,
-    "W": 0.0007,
-    "n": 8320
+    "W": 0.0711,
+    "n": 9130
   },
   "f107|ls_180_270|surface_dose_rate": {
     "Z": 0.3,
@@ -15,18 +15,18 @@
     "n": 0
   },
   "f107|ls_270_360|surface_dose_rate": {
-    "Z": 0.3,
-    "W": 0.0,
-    "n": 0
+    "Z": 1.0,
+    "W": 0.0551,
+    "n": 3186
   },
   "ap|ls_0_90|surface_dose_rate": {
-    "Z": 0.39,
-    "W": 0.0263,
-    "n": 1719
+    "Z": 0.44,
+    "W": 0.0327,
+    "n": 12036
   },
   "ap|ls_90_180|surface_dose_rate": {
-    "Z": 0.98,
-    "W": -0.0831,
+    "Z": 1.0,
+    "W": -0.0708,
     "n": 10121
   },
   "ap|ls_180_270|surface_dose_rate": {
@@ -35,9 +35,9 @@
     "n": 0
   },
   "ap|ls_270_360|surface_dose_rate": {
-    "Z": 0.3,
-    "W": 0.0,
-    "n": 0
+    "Z": 1.0,
+    "W": -0.0121,
+    "n": 3102
   },
   "kp_index|ls_0_90|surface_dose_rate": {
     "Z": 0.3,
@@ -61,8 +61,8 @@
   },
   "sep_proton|ls_0_90|surface_dose_rate": {
     "Z": 1.0,
-    "W": 0.0404,
-    "n": 753
+    "W": -0.0215,
+    "n": 2617
   },
   "sep_proton|ls_90_180|surface_dose_rate": {
     "Z": 0.3,
@@ -75,9 +75,9 @@
     "n": 0
   },
   "sep_proton|ls_270_360|surface_dose_rate": {
-    "Z": 0.3,
-    "W": 0.0,
-    "n": 0
+    "Z": 1.0,
+    "W": 0.1882,
+    "n": 668
   },
   "flare_xclass|ls_0_90|surface_dose_rate": {
     "Z": 0.3,

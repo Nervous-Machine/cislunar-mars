@@ -31,9 +31,12 @@ SW_ALL_URL = "https://celestrak.org/SpaceData/SW-All.csv"
 SWPC_ALERTS = "https://services.swpc.noaa.gov/products/alerts.json"
 SWPC_KP = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
 
-# Window: matches fetch_rad.py default (recent ~166 days of MSL/RAD coverage).
+# Window: 1 Earth year ending at the RAD coverage cutoff (2025-11-04).
+# Mars Ls advances ~192° over this span, exercising 2 of 4 voxels fully
+# and a third partially. Extending farther back (to a full Mars year)
+# would cover all four, at the cost of additional ~13 GB per ~190 days.
 WINDOW_END = datetime(2025, 11, 4, tzinfo=timezone.utc)
-WINDOW_START = WINDOW_END - timedelta(days=166)
+WINDOW_START = WINDOW_END - timedelta(days=366)
 
 
 def fetch_sw_all(manifest):

@@ -310,6 +310,36 @@ def main():
             f"| **overall** | **{overall_n:,}** | **{mp:.4f}** | **{me:.4f}** | **{reduction:+.2f}%** |"
         )
 
+    # Median variant — robust to Forbush-event outliers (single records
+    # can have |ε| ≥ 10σ when dose drops to ~30 µGy/day during SEP-driven
+    # solar wind disturbances; the mean is sensitive to these even after warm-up).
+    def med_abs(xs):
+        sxs = sorted(abs(x) for x in xs)
+        return sxs[len(sxs) // 2] if sxs else 0.0
+    comp_lines += [
+        "",
+        "Median variant (robust to Forbush-event outliers):",
+        "",
+        "| Voxel | n | median(\\|ε_prior\\|) | median(\\|ε_evolved\\|) | residual reduction |",
+        "|---|---|---|---|---|",
+    ]
+    for v in VOXELS:
+        for o in OBSERVABLES:
+            ep = eps_prior.get((v, o), [])
+            ee = eps_evolved.get((v, o), [])
+            if not ep:
+                continue
+            mp = med_abs(ep); me = med_abs(ee)
+            red = 100.0 * (mp - me) / mp if mp > 0 else 0.0
+            comp_lines.append(
+                f"| {v} | {len(ep):,} | {mp:.4f} | {me:.4f} | {red:+.2f}% |"
+            )
+    mp_med = med_abs(overall_prior); me_med = med_abs(overall_evolved)
+    reduction_med = 100.0 * (mp_med - me_med) / mp_med if mp_med > 0 else 0.0
+    comp_lines.append(
+        f"| **overall** | **{overall_n:,}** | **{mp_med:.4f}** | **{me_med:.4f}** | **{reduction_med:+.2f}%** |"
+    )
+
     # --- Anomaly-flag precision under self-reference ---
     comp_lines += [
         "",
