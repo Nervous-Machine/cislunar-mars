@@ -12,6 +12,13 @@ This directory is self-contained: framework math is mirrored verbatim
 into [`nm_primitives.py`](nm_primitives.py) (no MCP server or database
 required).
 
+## Companion preprint
+
+Bennett, H. (2026). *Causal learning across four space-environment regimes:
+autonomous discovery of regime-dependent physics and a measurement-gap
+roadmap for mission autonomy.* Zenodo.
+[https://doi.org/10.5281/zenodo.20563491](https://doi.org/10.5281/zenodo.20563491)
+
 ## Headline results
 
 Window: **2024-11-04 → 2025-11-04** (366 Earth days = ~192° of Mars

@@ -8,6 +8,17 @@ truth across 7.5 years (2018-05 → 2025-12).
 This directory is self-contained: the framework math is mirrored in
 [`nm_primitives.py`](nm_primitives.py) (no MCP server or database required).
 
+## Companion preprint
+
+Bennett, H. (2026). *Causal learning across four space-environment regimes:
+autonomous discovery of regime-dependent physics and a measurement-gap
+roadmap for mission autonomy.* Zenodo.
+[https://doi.org/10.5281/zenodo.20563491](https://doi.org/10.5281/zenodo.20563491)
+
+The preprint frames this LEO benchmark together with sibling GEO, Mars,
+and cislunar regime benchmarks as a four-regime portability demonstration
+of a per-edge causal-learning substrate.
+
 ## Headline results
 
 From a single-pass prequential (predict-then-update) run over the full record:

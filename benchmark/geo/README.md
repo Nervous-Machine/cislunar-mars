@@ -10,6 +10,13 @@ Self-contained: framework math mirrored in
 that no MCP-server changes were required to go from LEO drag to
 GEO trapped-particle / magnetic environment.
 
+## Companion preprint
+
+Bennett, H. (2026). *Causal learning across four space-environment regimes:
+autonomous discovery of regime-dependent physics and a measurement-gap
+roadmap for mission autonomy.* Zenodo.
+[https://doi.org/10.5281/zenodo.20563491](https://doi.org/10.5281/zenodo.20563491)
+
 ## Headline results
 
 From a single-pass prequential (predict-then-update) run over a 7-day
