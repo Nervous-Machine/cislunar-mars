@@ -87,3 +87,66 @@ cislunar, and Mars configurations.
 The framework math mirrored here is the source-of-truth implementation in
 `~/NM-learning-loop/mcp_validation.py` (the operational MCP server). If the two
 disagree, the MCP server is authoritative.
+
+## What this means for operators
+
+The natural readers for this section are NOAA SWPC operational forecasters,
+commercial LEO constellation operators (SpaceX Starlink, Planet, Iceye, etc.),
+USSF Space Domain Awareness (SDA), and any LEO mission planner doing
+conjunction analysis or lifetime budgeting.
+
+**What you get that you don't have today.** MSIS-class operational drag
+forecasts are point predictions with no calibrated certainty and no per-
+voxel resolution. This substrate produces (a) a calibrated per-edge `Z`
+per latitude × local-time voxel that tells the operator how much to trust
+*this specific* density forecast, and (b) per-driver attribution at the
+voxel level — when MSIS is wrong, the substrate identifies which driver
+(solar wind speed, Bz, dynamic pressure, F10.7-regime) is doing the
+unexplained work. **Anomaly-flag precision 92.4%, lift 7.9×** over the
+base rate of MSIS errors; storm lead time **median +111h** at SEVERE-tier
+across 21 storms ≤ −100 nT Dst.
+
+**Concrete operational uses.**
+
+- **Conjunction analysis confidence intervals.** Current covariance
+  inflation around storm windows is heuristic. The substrate's per-edge
+  `Z` is the natural input to a calibrated covariance multiplier — the
+  operator gets a confidence interval that's tight when the substrate
+  has converged and wider when it hasn't. Directly drops into
+  conjunction-action thresholds.
+- **Re-entry / lifetime-budget refresh.** For decaying assets in the
+  400-600 km band, the per-voxel storm-time density correction
+  materially changes lifetime estimates. The substrate's evolved-W
+  state gives a calibrated alternative to MSIS-point-prediction lifetime
+  estimates.
+- **Maneuver scheduling under storm risk.** The +111h median lead-time
+  is enough for ground-loop maneuver planning. Per-LT-voxel state lets
+  the operator schedule around the highest-risk voxel rather than
+  apply a uniform safety margin.
+- **Constellation health monitoring.** For large LEO constellations,
+  per-spacecraft drag-budget exceedances are signals (battery sag,
+  thermal anomaly, valve leak). The substrate's per-voxel residual is
+  the right reference — vehicle-level deviation against a calibrated
+  environmental expectation is what the operator wants, not against an
+  MSIS point prediction that's confidently wrong during storms.
+
+**Inner/outer architecture context.** This benchmark is the *outer*
+(environmental) learning loop. The same primitive math is intended to
+deploy on the spacecraft flight computer as an *inner* (mechanical)
+learning loop — battery degradation under thermal/charge cycling under
+varying drag-thermal load, attitude-controller bias under driver torques,
+solar-array degradation under storm exposure — using the outer loop's
+converged per-edge `(W, Z)` as the inner loop's prior. Together the two
+loops bound the operator's worst-case unknown unknowns from above
+(environment surprise) and below (vehicle surprise). A first-stage
+operator pilot is outer-loop-only; the inner-loop deployment is a
+Phase II artifact.
+
+**What an operator pilot looks like.** 3-6 month shadow run: operator
+continues to act on MSIS + existing tooling; substrate publishes per-edge
+state + flags to a shared dashboard; at end of pilot, we compute
+lead-time-vs-current-tooling histograms, per-anomaly trace reports, and
+an inner-loop scaffold proposal specific to the operator's platform
+class. The substrate runs against the operator's archive data — no
+spacecraft modification required for the outer-loop pilot.
+Contact: heidi@everychart.io.

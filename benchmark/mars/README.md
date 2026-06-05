@@ -268,3 +268,68 @@ file here is a reproducibility mirror, not an independent implementation.
 6. **`integral_charged_particle_flux` observable** — RAD-E energy-resolved
    spectrum, currently outside the surface_dose_rate single-observable
    scope.
+
+## What this means for operators
+
+The natural readers for this section are NASA Mars Program operations
+(Mars 2020 surface ops, future crewed-Mars planners), ESA ExoMars,
+JAXA MMX, the MSL/RAD science team, and any commercial CLPS / Mars
+mission planner thinking about radiation-exposure budgeting.
+
+**What you get that you don't have today.** Operational Mars dose
+forecasting is currently model-output (NAIRAS-Mars, HZETRN runs) with
+no public time-aligned archive and no calibrated certainty per forecast.
+This substrate gives (a) a calibrated per-edge `Z` per Ls voxel that
+tells the operator how much to trust the forecast in *this* Mars
+season under *these* heliospheric conditions, and (b) voxel-specific
+signed driver attribution — the substrate independently discovered
+that F10.7 suppresses dose at aphelion (GCR-modulation regime) and
+SEP onsets enhance dose at perihelion (SEP-impulse regime), without
+any voxel-specific prior. Operationally, this means dose-budget
+forecasting is *seasonally asymmetric* and the substrate represents
+this directly.
+
+**Concrete operational uses.**
+
+- **SEP-event flagging for rover-instrument operations.** All 5/5 SEP
+  events in the benchmark year were flagged by the substrate; the
+  May 2025 S2-class event drove a 24.3σ residual (see
+  [`results/sep_event_response.md`](results/sep_event_response.md)).
+  Operationally, this is the trigger to delay non-essential rover
+  instrument cycles and prioritize telemetry downlink.
+- **Multi-year crew dose-budget tracking with calibrated uncertainty.**
+  For future crewed Mars missions, the per-event Δ-dose history
+  (Nov 2024 event added +107 µGy/day at peak) plus the substrate's
+  edge-level uncertainty supports operator-side dose-budget integration
+  with confidence intervals — currently impossible without per-forecast
+  uncertainty.
+- **Forbush-decrease awareness.** The substrate learned `ap → dose`
+  W = −0.071 at ls_90_180: GCR access drops during heliospheric storms,
+  *reducing* dose transiently. This is the opposite of LEO/cislunar
+  intuition (where storm activity correlates with *enhanced* particle
+  exposure). The substrate surfaces the Mars-specific sign without
+  needing operator domain knowledge.
+- **Future crew shelter timing.** A pilot during a crewed cruise or
+  surface stay would use the substrate's per-edge `Z` as the gate
+  for "is this forecast trustworthy enough to act on the shelter
+  decision now?" rather than a point-prediction threshold.
+
+**Inner/outer architecture context.** This benchmark is the *outer*
+(environmental) learning loop. The same primitives are intended to
+deploy on a Mars-class spacecraft / surface platform as an *inner*
+(mechanical) learning loop — solar-array degradation under SEP
+exposure, electronics SEU rate under voxel-dependent dose, thermal-loop
+behavior under dust-storm seasonal cycle — using the outer loop's
+converged per-edge `(W, Z)` as the inner loop's prior. Together the
+two loops bound the operator's unknown unknowns from above (Mars
+environment surprise) and below (vehicle surprise).
+
+**What an operator pilot looks like.** 3-6 month shadow run on the
+operator's Mars-mission planning archive (telemetry windows, EVA / EVO
+analog windows, instrument-mode logs). Substrate publishes per-edge
+state + flags to a shared dashboard; at end of pilot we produce
+lead-time-vs-current-tooling histograms and per-anomaly trace reports
+(which driver was attributable, in which Ls voxel, at what `Z`).
+First-stage pilot is outer-loop-only against the archive — no
+spacecraft modification required. Inner-loop deployment is a Phase II
+artifact. Contact: heidi@everychart.io.

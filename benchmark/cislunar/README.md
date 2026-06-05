@@ -298,3 +298,70 @@ If the two disagree, the MCP server is authoritative.
 7. **ESCAPADE near-moon-passage data** during 2026 loiter phase. SIMPLEx
    proprietary period; partnership access via PI engagement is in the
    Phase I Task 3.3 plan, not in this pre-Phase-II benchmark.
+
+## What this means for operators
+
+The natural readers for this section are the Artemis program (NASA HQ,
+JSC, MSFC), CLPS lunar-lander providers (Intuitive Machines, Astrobotic,
+Firefly, etc.), the ESCAPADE team, and any commercial cislunar-transit
+mission operator planning radiation-environment-aware autonomy.
+
+**What you get that you don't have today.** Operational cislunar IMF
+forecasting today is naive ballistic propagation: take the L1 DSCOVR
+measurement, assume the field convects unchanged to the Moon. This
+substrate produces (a) a calibrated per-voxel correction that's regime-
+aware (solar wind vs. magnetotail transit), (b) a per-edge `Z` that tells
+the operator how much to trust the propagation correction in *this*
+voxel, and (c) the structural result that **no single coupling can
+represent both regimes** — a single-coupling forecaster (naive ballistic)
+is excellent in the solar wind and structurally broken in the magnetotail,
+and only a per-voxel learner can represent the regime-dependence. The
+substrate discovered magnetotail lobe-field decoupling from L1 *without
+any voxel-specific prior* — that result is the load-bearing falsifiable
+signature for cislunar-regime portability.
+
+**Concrete operational uses.**
+
+- **Cislunar transit dose forecasting that's voxel-aware.** Matters for
+  Artemis crew transit through the magnetotail crossing; matters for
+  CLPS surface-mission planning during cislunar approach. Naive
+  ballistic dose forecasts overweight L1-driven exposure inside the
+  magnetotail where the field is decoupled. The substrate corrects this
+  regime-by-regime.
+- **Comm-degradation prediction during magnetotail passage.** Lobe
+  plasma + lobe field set comm-band absorption differently from
+  solar-wind conditions. The substrate's per-voxel state can drive
+  on-board comm-mode selection (data rate, frequency band) without
+  ground-loop latency.
+- **ESCAPADE-class mission planning during loiter.** Near-moon passage
+  during the 2026 loiter phase covers cislunar regions the substrate
+  has voxel-edge structure for. A live ESCAPADE data feed during loiter
+  is the natural Phase II pilot input — substrate priors at delivery
+  inform mission-planning loops; loiter telemetry advances the per-edge
+  state at higher cadence than the public ARTEMIS-only base supports.
+- **Lunar surface dose budget for crewed operations.** The supplementary
+  CRaTER 2009-2012 thread already shows F10.7-vs-orbital-dose r=−0.71
+  on real lunar-orbit data — the classical GCR-modulation signature.
+  For Artemis surface ops, this is the regime baseline against which
+  per-event SEP enhancements have to be planned.
+
+**Inner/outer architecture context.** This benchmark is the *outer*
+(environmental) learning loop. The same primitives deploy on a
+cislunar / lunar-surface platform as an *inner* (mechanical) learning
+loop — solar-array degradation under transit dose, comm-band attenuation
+under lobe-plasma conditions, thermal-loop behavior under lunar-night
+extremes — using the outer loop's converged per-edge `(W, Z)` as the
+inner loop's prior. Together the two loops bound the operator's unknown
+unknowns from above (cislunar environment surprise, regime-dependent)
+and below (vehicle surprise).
+
+**What an operator pilot looks like.** 3-6 month shadow run against
+the operator's cislunar / lunar-mission archive (transit telemetry,
+comm logs, instrument-mode windows). Substrate publishes per-voxel
+state + flags to a shared dashboard; at end of pilot we produce
+lead-time-vs-current-tooling histograms, per-anomaly trace reports,
+and an inner-loop scaffold proposal specific to the platform class
+(crew vehicle, CLPS lander, smallsat). First-stage pilot is outer-loop-
+only against the archive — no spacecraft modification required.
+Contact: heidi@everychart.io.
+

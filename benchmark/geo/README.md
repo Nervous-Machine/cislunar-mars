@@ -155,6 +155,62 @@ tree was created but is empty as of 2026-06; the L1b S3 path is
 working but requires a netCDF4 + xarray ingest layer that is out of
 scope for this commit.
 
+## What this means for operators
+
+The natural readers for this section are GEO satellite operations teams
+(Intelsat, SES, Inmarsat, Iridium, USSF GEO assets), NOAA SWPC operational
+forecasters, and spacecraft anomaly-response analysts.
+
+**What you get that you don't have today.** Operational REFM is a single
+Day-1 forecast number with no calibrated uncertainty and no LT structure.
+This substrate produces (a) a calibrated per-edge certainty `Z` per
+LT-voxel per observable, (b) a signed coupling `W` per driver that's
+voxel-aware (pre-midnight growth-phase risk is structurally different
+from afternoon-side and the substrate represents this directly), and
+(c) a 4× lower log-MAE than REFM Day-1 on the overlap window with the
+same input data REFM uses. The substrate's anomaly flag fires when
+both `Z ≥ 0.85` AND `|ε| ≥ 2σ` — the `Z` gate is the part that's
+missing from current operational tooling.
+
+**Concrete operational uses.**
+
+- **Deep-dielectric-charging precursor flagging** with per-LT-voxel
+  resolution — currently 67% sign-correct on `dst → b_field_magnitude`
+  causal edges (vs. 50% random); the unconverged voxels are exactly
+  where the operator wants more measurement (§"Skeleton boundary"
+  in `results/tier3_sign_convergence.md`).
+- **Charging-anomaly EVA-analog timing.** Delay non-critical thruster
+  firings during high-`Z` charging windows; the substrate gives an
+  hours-to-days lead time with calibrated confidence rather than a
+  daily binary forecast.
+- **Pre-midnight growth-phase substorm awareness.** The substrate's
+  per-LT-voxel state surfaces the LT-structured risk that operational
+  forecasts average over. This matters for sensitive-mode scheduling
+  on payloads near substorm onset sectors.
+- **Lead-time results from the current window:** 10/11 SWPC operational
+  alerts in the obs window flagged at SEVERE-tier ahead of alert onset,
+  median +103.8h. See [`results/lead_time_by_severity.md`](results/lead_time_by_severity.md).
+
+**Inner/outer architecture context.** This benchmark is the *outer*
+(environmental) learning loop. The same primitive math is intended to
+deploy on the spacecraft flight computer as an *inner* (mechanical)
+learning loop — battery degradation under thermal/charge cycling,
+attitude-controller bias under storm-driven torques, etc. — using the
+outer loop's converged per-edge `(W, Z)` as the inner loop's prior.
+Together the two loops bound the operator's worst-case unknown unknowns
+from above (environment surprise) and below (vehicle surprise); either
+alone is insufficient for assured autonomy. A first-stage operator
+pilot is outer-loop-only with a Phase II inner-loop deployment.
+
+**What an operator pilot looks like.** 3-6 month shadow run: operator
+continues to act on REFM and existing tooling; substrate publishes
+per-edge state + flags to a shared dashboard; at end of pilot, we
+compute lead-time-vs-current-tooling histograms and per-anomaly trace
+reports (which driver was attributable, in which LT voxel, at what
+`Z`). The substrate runs against the operator's archive data — no
+spacecraft modification required for the outer-loop pilot. Contact:
+heidi@everychart.io.
+
 ## Provenance
 
 Framework primitives in `nm_primitives.py` are byte-identical to the LEO
