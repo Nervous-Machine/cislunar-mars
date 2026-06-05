@@ -14,7 +14,6 @@ provenance:
   evidence:
     - grace_fo_dryrun_results_2026_03
     - space_atlas_grace_fo_convergence_benchmark
-    - nasa_sbir_spwx_1_s26a_subtopic
 
 domain: space-weather
 entity: leo-thermosphere-density

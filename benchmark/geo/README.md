@@ -200,7 +200,8 @@ outer loop's converged per-edge `(W, Z)` as the inner loop's prior.
 Together the two loops bound the operator's worst-case unknown unknowns
 from above (environment surprise) and below (vehicle surprise); either
 alone is insufficient for assured autonomy. A first-stage operator
-pilot is outer-loop-only with a Phase II inner-loop deployment.
+pilot is outer-loop-only; the inner-loop deployment is a follow-on
+deliverable.
 
 **What an operator pilot looks like.** 3-6 month shadow run: operator
 continues to act on REFM and existing tooling; substrate publishes

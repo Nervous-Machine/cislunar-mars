@@ -25,7 +25,6 @@ provenance:
   added_by: heidi
   evidence:
     - swwx_2026_anomaly_resolution_thread
-    - nasa_sbir_spwx_1_s26a_subtopic
     - grace_fo_precedent_pipeline
     - goes_r_seiss_operational_continuity
 
@@ -89,7 +88,7 @@ regions:
 # What the substrate predicts at each region. Each is validated against a
 # direct error signal in geo/validate.yaml. operational_relevance ties the
 # observable to a specific anomaly-resolution risk category that
-# SPWX.1.S26A names.
+# operational forecasting and anomaly-response practice address.
 
 predicted_observables:
 

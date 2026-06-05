@@ -142,7 +142,7 @@ what a Physical AI looks like when "physics" itself is regime-dependent.
 The benchmark in this directory demonstrates the causal-graph half of
 this loop end-to-end on real ARTEMIS-P1/P2 ground truth across the
 May 2024 G5 storm. The LLM-hypothesis half is the on-payload deployment
-artifact targeted by the Phase II SBIR. Even without the explicit
+artifact targeted by follow-on work. Even without the explicit
 LLM-escalation step running on this benchmark, the voxelized per-edge
 state is *forced* to learn the regime-dependence rather than average
 it out — because the prior is identical across all three regions, and

@@ -140,7 +140,7 @@ converged per-edge `(W, Z)` as the inner loop's prior. Together the two
 loops bound the operator's worst-case unknown unknowns from above
 (environment surprise) and below (vehicle surprise). A first-stage
 operator pilot is outer-loop-only; the inner-loop deployment is a
-Phase II artifact.
+follow-on deliverable.
 
 **What an operator pilot looks like.** 3-6 month shadow run: operator
 continues to act on MSIS + existing tooling; substrate publishes per-edge
@@ -148,5 +148,6 @@ state + flags to a shared dashboard; at end of pilot, we compute
 lead-time-vs-current-tooling histograms, per-anomaly trace reports, and
 an inner-loop scaffold proposal specific to the operator's platform
 class. The substrate runs against the operator's archive data — no
-spacecraft modification required for the outer-loop pilot.
+spacecraft modification required for the outer-loop pilot. Inner-loop
+deployment is a follow-on deliverable.
 Contact: heidi@everychart.io.

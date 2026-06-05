@@ -246,8 +246,8 @@ and it is the load-bearing operational implication of the benchmark:
 
 The benchmark in this directory demonstrates the causal-graph half of
 this loop end-to-end on real MSL/RAD ground truth. The LLM-hypothesis
-half is the on-payload deployment artifact targeted by the Phase II
-SBIR. Even without the explicit LLM-escalation step running on this
+half is the on-payload deployment artifact targeted by follow-on work.
+Even without the explicit LLM-escalation step running on this
 benchmark, the voxelized per-edge state is *forced* to learn the
 regime-dependence rather than average it out — because the prior is
 identical across all four Ls bins, and the data did the rest.
@@ -386,5 +386,5 @@ state + flags to a shared dashboard; at end of pilot we produce
 lead-time-vs-current-tooling histograms and per-anomaly trace reports
 (which driver was attributable, in which Ls voxel, at what `Z`).
 First-stage pilot is outer-loop-only against the archive — no
-spacecraft modification required. Inner-loop deployment is a Phase II
-artifact. Contact: heidi@everychart.io.
+spacecraft modification required. Inner-loop deployment is a follow-on
+deliverable. Contact: heidi@everychart.io.

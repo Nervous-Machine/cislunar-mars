@@ -33,7 +33,6 @@ provenance:
   added_by: heidi
   evidence:
     - swwx_2026_anomaly_resolution_thread
-    - nasa_sbir_spwx_1_s26a_subtopic
     - grace_fo_precedent_pipeline
     - geo_prior_pattern
     - mars_prior_pattern
