@@ -54,16 +54,24 @@ endpoints:
     instrument: "RAD (Radiation Assessment Detector)"
     pi: "Don Hassler (Southwest Research Institute)"
     protocol: archive_pull
-    endpoint: "https://pds-ppi.igpp.ucla.edu/data/msl-m-rad-2-4-edr-rdr-v1.0/"
+    endpoint: "https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/"
+    endpoint_kind: pds3_archive_tree
+    archive_layout:
+      index: "INDEX/INDEX.TAB"
+      data: "DATA/SOL_{NNNNN}_{NNNNN}/RAD_RDR_YYYY_DOY_HH_MM_NNNN_V00.{LBL,TXT}"
+      coverage: "2012-08 (Sol 0) through 2025-308 — 5,435 daily product files"
     cadence: PT1H
     format:
-      fields: [sol, ls, lst, dose_rate_b, dose_rate_e, uncertainty]
-      target_field: "dose_rate_b"
+      kind: pds3_label_plus_ascii
+      dose_block: "[DOSIMETRY_TOTAL_DOSE_B: NN]"
+      target_field: "dose_rate_b (µGy/day; derived from total dose / integration duration)"
       units: "μGy/day"
     notes: |
-      Primary validation source for Mars regime. Continuous operation
-      since landing (Aug 2012). Provides quiet-time GCR baseline and
-      records every SEP event reaching Mars surface during the mission.
+      Primary validation source for Mars regime. Continuous operation since
+      landing (Aug 2012). Provides quiet-time GCR baseline and records every
+      SEP event reaching Mars surface during the mission. Each per-sol product
+      is a PDS3 .LBL/.TXT pair; dose-rate is derived from total-dose blocks
+      divided by integration duration (recorded in counter headers).
 
   - name: msl_rad_charged_particle_spectrum
     role: direct_error_signal
@@ -72,7 +80,7 @@ endpoints:
     instrument: "RAD-E (Energy spectrum channels)"
     pi: "Don Hassler (Southwest Research Institute)"
     protocol: archive_pull
-    endpoint: "https://pds-ppi.igpp.ucla.edu/data/msl-m-rad-2-4-edr-rdr-v1.0/"
+    endpoint: "https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/"
     cadence: PT1H
     format:
       fields: [sol, ls, charged_particle_flux_e, energy_channel]

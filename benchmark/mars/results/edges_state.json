@@ -1,0 +1,122 @@
+{
+  "f107|ls_0_90|surface_dose_rate": {
+    "Z": 0.51,
+    "W": -0.0102,
+    "n": 511
+  },
+  "f107|ls_90_180|surface_dose_rate": {
+    "Z": 0.4,
+    "W": 0.077,
+    "n": 4122
+  },
+  "f107|ls_180_270|surface_dose_rate": {
+    "Z": 1.0,
+    "W": -0.0844,
+    "n": 4122
+  },
+  "f107|ls_270_360|surface_dose_rate": {
+    "Z": 0.3,
+    "W": -0.2145,
+    "n": 6
+  },
+  "ap|ls_0_90|surface_dose_rate": {
+    "Z": 0.88,
+    "W": -0.0013,
+    "n": 511
+  },
+  "ap|ls_90_180|surface_dose_rate": {
+    "Z": 1.0,
+    "W": -0.0595,
+    "n": 4122
+  },
+  "ap|ls_180_270|surface_dose_rate": {
+    "Z": 1.0,
+    "W": 0.0396,
+    "n": 4098
+  },
+  "ap|ls_270_360|surface_dose_rate": {
+    "Z": 0.3,
+    "W": -0.0612,
+    "n": 6
+  },
+  "kp_index|ls_0_90|surface_dose_rate": {
+    "Z": 0.63,
+    "W": -0.0025,
+    "n": 511
+  },
+  "kp_index|ls_90_180|surface_dose_rate": {
+    "Z": 0.93,
+    "W": -0.1926,
+    "n": 4122
+  },
+  "kp_index|ls_180_270|surface_dose_rate": {
+    "Z": 1.0,
+    "W": 0.1892,
+    "n": 4122
+  },
+  "kp_index|ls_270_360|surface_dose_rate": {
+    "Z": 0.3,
+    "W": -0.1018,
+    "n": 6
+  },
+  "sep_proton|ls_0_90|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sep_proton|ls_90_180|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "sep_proton|ls_180_270|surface_dose_rate": {
+    "Z": 1.0,
+    "W": 0.5548,
+    "n": 685
+  },
+  "sep_proton|ls_270_360|surface_dose_rate": {
+    "Z": 0.34,
+    "W": -0.0123,
+    "n": 6
+  },
+  "flare_xclass|ls_0_90|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|ls_90_180|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "flare_xclass|ls_180_270|surface_dose_rate": {
+    "Z": 1.0,
+    "W": 0.1676,
+    "n": 94
+  },
+  "flare_xclass|ls_270_360|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|ls_0_90|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|ls_90_180|surface_dose_rate": {
+    "Z": 0.3,
+    "W": 0.0,
+    "n": 0
+  },
+  "geomag_storm|ls_180_270|surface_dose_rate": {
+    "Z": 1.0,
+    "W": -0.0216,
+    "n": 621
+  },
+  "geomag_storm|ls_270_360|surface_dose_rate": {
+    "Z": 0.34,
+    "W": -0.0076,
+    "n": 6
+  }
+}

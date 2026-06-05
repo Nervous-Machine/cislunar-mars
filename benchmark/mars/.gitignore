@@ -1,0 +1,6 @@
+raw/
+*.jsonl
+*.csv
+__pycache__/
+*.pyc
+!results/*.md
