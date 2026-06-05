@@ -1,18 +1,19 @@
 """
-Mars regime — fetch real public driver data (no ground truth yet — see
-generate_rad_synthetic.py for that gap).
+Mars regime — fetch real public driver data over the RAD-aligned window.
 
 Pulls:
-  - CelesTrak SW-All (F10.7 daily, Ap daily, going back to 1957) — the
-    long-baseline solar/geomagnetic archive already used by the LEO benchmark
-  - SWPC alerts.json (rolling 1-day) — SEP/CME event triggers; for skeleton
-    we extract event timestamps to seed synthetic SEP injections at real
-    recent event times
-  - SWPC Kp index history (rolling) — 3-hour Kp
+  - CelesTrak SW-All (F10.7 daily, Ap daily) — long-baseline solar /
+    geomagnetic archive
+  - SWPC alerts.json (rolling 30-day) — SEP/CME event triggers; kept for
+    skeleton continuity but does NOT overlap the historical RAD window
+    (see fetch_goes_protons.py for the archive-grade SEP source)
+  - SWPC Kp index history (rolling)
 
-Skeleton scope: covers a 1-Earth-year window so Mars voxelization (4 Ls bins
-of 90° each ~ 172 Earth days) can exercise multiple voxels. Real MSL/RAD
-ground truth would come from PDS — see README's "Deferred" for the path.
+Window: defaults to the same range as fetch_rad.py (2025-05-22 →
+2025-11-04, the most recent 166 days of MSL/RAD PDS coverage). The
+historical archives (SW-All, OMNI, GOES SGPS) cover this window. The
+SWPC alerts feed does not — sep_proton driver is supplied by
+fetch_goes_protons.py for the historical window instead.
 """
 
 import csv
@@ -30,9 +31,9 @@ SW_ALL_URL = "https://celestrak.org/SpaceData/SW-All.csv"
 SWPC_ALERTS = "https://services.swpc.noaa.gov/products/alerts.json"
 SWPC_KP = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
 
-# Skeleton window: last 1 Earth year (covers ~190° of Ls — exercises 2-3 voxels)
-WINDOW_END = datetime(2026, 5, 22, tzinfo=timezone.utc)
-WINDOW_START = WINDOW_END - timedelta(days=365)
+# Window: matches fetch_rad.py default (recent ~166 days of MSL/RAD coverage).
+WINDOW_END = datetime(2025, 11, 4, tzinfo=timezone.utc)
+WINDOW_START = WINDOW_END - timedelta(days=166)
 
 
 def fetch_sw_all(manifest):
@@ -93,7 +94,8 @@ def summarize_window():
 
 def main():
     print(f"fetching Mars-regime drivers → {RAW}/")
-    print(f"window: {WINDOW_START.date()} → {WINDOW_END.date()}  (365 days)")
+    days = (WINDOW_END - WINDOW_START).days
+    print(f"window: {WINDOW_START.date()} → {WINDOW_END.date()}  ({days} days)")
     manifest = {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "window_start": WINDOW_START.isoformat(),
