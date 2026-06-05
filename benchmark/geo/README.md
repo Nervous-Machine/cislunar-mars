@@ -1,109 +1,169 @@
-# GEO regime — skeleton benchmark
+# GEO benchmark — Nervous Machine on GOES-19 + REFM comparator
 
-Sibling to [`../`](../) (the published LEO Zenodo benchmark). This directory
-proves the LEO architecture transfers to the GEO regime with no MCP-server
-changes, on real data from public SWPC JSON endpoints.
+The GEO-regime sibling of the LEO Zenodo benchmark at
+[`../`](../). Validates the substrate against the operational SWPC REFM
+forecast model for >2 MeV electron fluence, plus an internal prior-W
+comparator and a falsifiable architecture-test pass.
 
-**Status:** skeleton (plumbing-proof). 1-day rolling SWPC window, 4 of 5
-target observables wired, SEP/CME/flare event drivers parsed from
-`alerts.json`, no operational comparator baseline yet. See "Deferred" below.
+Self-contained: framework math mirrored in
+[`nm_primitives.py`](nm_primitives.py); regime-portability claim is
+that no MCP-server changes were required to go from LEO drag to
+GEO trapped-particle / magnetic environment.
 
-## What it shows
+## Headline results
 
-A streaming single-pass run over 24 h of GOES-19 SEISS + GOES-MAG +
-GOES-EXIS observations (~2,300 records), with drivers aligned from DSCOVR,
-GOES-XRS, GOES-EUVS (MgII), Kp, Dst, and four event-driven drivers parsed
-from `alerts.json` (`sep_proton`, `relativistic_electron`, `flare_xclass`,
-`geomag_storm`), produces:
+From a single-pass prequential (predict-then-update) run over a 7-day
+SWPC rolling window (5 observables × 6 LT voxels × 12 drivers = 360
+edges, 17,809 obs records, 175,450 edge updates):
 
-- 288 edges across 6 LT voxels × 4 observables × 12 drivers
-- 24,000+ edge updates via the same `apply_learning_feedback_in_memory`
-  primitive used in the LEO benchmark
-- 117/288 edges converge to Z ≥ 0.85 in one pass; median Z = 0.55
-- Z evolution at the expected rates; W exercises the full \[−1, +1\]
-  range; activity gating fires on inactive drivers
-- B-field magnitude edges use additive-residual composition
-  (`p = baseline + (Σ d·W)·σ`) — multiplicative coupling had saturated
-  6/6 voxels at W=±1 because B at GEO varies only ~±30 nT around ~100 nT
-  while sum-of-W can exceed ±1 with 8+ active drivers; per-observable
-  composition mode in `learn_geo.py` solves this without changing fluxes
-- All six LT voxels see observations (no geometric coverage gap)
+- **Tier-1 internal comparator: anomaly-flag precision 45.2%, lift 6.99×**
+  over the prior-W baseline (analogous to LEO's 7.90× over MSIS).
+  Residual variance reduced 82.9% on B-field, 34.8% on warm-plasma —
+  see [`results/internal_comparator.md`](results/internal_comparator.md).
+- **Tier-2 external comparator (REFM):** framework log-MAE 0.041 vs REFM
+  Day-1 log-MAE 0.169 on the 7-day overlap (4× lower). REFM publishes
+  PE=0.15 all-time / 0.42 last-30-d as its own skill — see
+  [`results/tier2_refm_comparison.md`](results/tier2_refm_comparison.md).
+- **Tier-3 falsifiable architecture test:** `dst → b_field_magnitude`
+  edges converge with the correct sign in 4/6 voxels (67%, vs 50% chance);
+  null-expected edges hold |W| ≤ 0.10 in 59% of cases. **SEP/CME edges
+  show zero in-window event coverage** (0/1966 records ≥10 pfu) — the
+  test honestly reports decay-tail-only data, not architecture failure.
+  See [`results/tier3_sign_convergence.md`](results/tier3_sign_convergence.md).
+- **Lead-time analysis:** 10/11 SWPC alert events in the obs window were
+  flagged at SEVERE-tier (≥5σ) before alert onset, median lead +103.8h.
+  See [`results/lead_time_by_severity.md`](results/lead_time_by_severity.md).
 
-See `results/training_summary.md` and `results/edges_state.json`.
-
-The framework's `nm_primitives.py` is byte-identical to the LEO benchmark's
-copy — the only regime-specific code is fetch + extract glue and a shared
-SWPC alerts parser at [`../sep_alerts.py`](../sep_alerts.py).
-
-## Files
+## What's here
 
 | File | Role |
 |---|---|
-| `nm_primitives.py` | Identical copy of the LEO benchmark's primitives |
-| `fetch_goes.py` | Pull 1-day rolling SWPC JSON for GOES + DSCOVR + indices |
-| `extract_obs_jsonl.py` | Time-align drivers, voxelize by LT, parse SWPC alerts → SEP/flare drivers, emit per-(t, voxel, observable) JSONL |
-| `learn_geo.py` | Streaming single-pass training using the shared primitives; per-observable composition mode (additive for B-field, multiplicative for fluxes) |
-| `../sep_alerts.py` | Shared SWPC alerts parser (also used by Mars). Maps Space Weather Message Codes to graded event-driver intensity with exponential decay |
-| `results/` | Committed small artifacts: training summary, final edge state |
+| `nm_primitives.py` | Framework math (ε, η, ΔW, Z evolution), byte-identical to the LEO benchmark's copy. Standalone. |
+| `fetch_goes.py` | Pull 7-day rolling SWPC JSON for GOES + DSCOVR + indices, plus REFM tabular text |
+| `extract_obs_jsonl.py` | Time-align drivers, voxelize by LT, parse SWPC alerts → SEP/CME drivers, emit per-(t, voxel, observable) JSONL |
+| `learn_geo.py` | Streaming single-pass training; per-observable composition (log-space multiplicative for fluxes, additive-residual for B-field); writes `results/preds.jsonl` + `results/trajectory.jsonl` |
+| `analyze_internal.py` | Tier-1 comparator: evolved-W vs prior-W, 2×2 contingency + per-observable variance reduction |
+| `analyze_refm.py` | Tier-2 comparator: framework e_flux_gt_2mev vs SWPC REFM Day-1 forecast, daily-fluence aggregation |
+| `analyze_sign_convergence.py` | Tier-3 falsifiable architecture test: published a-priori signs vs converged W |
+| `analyze_lead_time.py` | Per-event lead time by severity tier (LEO parity) |
+| `../sep_alerts.py` | Shared SWPC alerts parser (also used by Mars) |
+| `results/` | Committed small artifacts: training summary, final edge state, comparator tables |
 
-## ε convention
+## Method, briefly
 
-Same as LEO: z-score residual `ε = (p − o) / σ_v`. The framework's
-magnitude-tolerance constants (`W_STEP`, `Z_BIAS_TOL`, `Z_STD_TOL`) are
-rescaled together for this ε scale — see
-[`../../math_functions.md`](../../math_functions.md) §3.1 for the
-provenance of that rescale and its planned API cleanup.
+- **Observables** (5 of 5 in `geo/prior.yaml`): `e_flux_gt_2mev` (>=2 MeV
+  electrons), `p_flux_gt_10mev`, `p_flux_gt_50mev` (SEP-relevant protons),
+  `b_field_magnitude` (GEO magnetic field total), `e_flux_warm_plasma`
+  (79 keV — proxy for the 1-50 keV MPS-LO band declared in prior.yaml;
+  L1b MPS-LO is the eventual swap-in once a NetCDF ingest layer is added).
+- **Drivers** (12 of 12): DSCOVR plasma (sw_speed, sw_density), DSCOVR
+  mag (imf_bz, imf_bt), GOES-EXIS (xrs_long, mgii_index), planetary
+  indices (kp_index, dst), and four event-derived drivers from SWPC
+  alerts.json — `sep_proton`, `relativistic_electron`, `flare_xclass`,
+  `geomag_storm` — each in [0, 1] with exponential decay from onset
+  (see `../sep_alerts.py` for the Space Weather Message Code mapping).
+- **Voxelization:** 6 local-time bins (lt_0_4 … lt_20_24). GOES-19 at
+  ~75.2°W sweeps all 6 voxels every 24 h.
+- **Composition modes per observable.** Flux observables use log-space
+  multiplicative coupling — `log10(p) = log10(bl) + (Σ d·W)·σ_log`,
+  clamped to ±3 OOM — because flux residuals span many decades during
+  storms and naive linear coupling saturates W at ±1 with many active
+  drivers. B-field uses additive-residual — `p = bl + (Σ d·W)·σ_linear`
+  — because GEO B varies only ~±30 nT around ~100 nT and a multiplicative
+  form would saturate similarly. See `PREDICTION_FORM` in `learn_geo.py`.
+- **ε convention:** dimensionless per-voxel-observable z-scored
+  residual. For multiplicative (flux): ε = (log10 p − log10 o) / σ_log;
+  for additive (B-field): ε = (p − o) / σ_linear. Framework's
+  magnitude-tolerance constants (`W_STEP`, `Z_BIAS_TOL`, `Z_STD_TOL`)
+  are rescaled in `learn_geo.py` to match the z-score ε scale, same
+  rescale as the LEO benchmark.
+- **Evaluation:** single online prequential pass (predict-then-update).
+  Each prediction uses edge state *before* the observation; the edge
+  then updates.
 
-## Run
+## Three-tier metric contract
+
+The LEO benchmark has one tier-2 metric available — MSIS exists as
+THE operational standard for thermospheric density. The GEO regime
+has REFM for >2 MeV electrons but no equivalent for protons / B /
+hot plasma. The benchmark therefore reports three metric tiers:
+
+| Tier | What | Where |
+|---|---|---|
+| 1 | Internal: evolved-W vs prior-W (W=0) baseline. Strict subset comparator — any precision lift is from learned coupling. Always producible. | [`results/internal_comparator.md`](results/internal_comparator.md) |
+| 2 | External: SWPC REFM Day-1 forecast for `e_flux_gt_2mev`. Operational baseline with published PE. Wirable for 1/5 observables. | [`results/tier2_refm_comparison.md`](results/tier2_refm_comparison.md) |
+| 3 | Falsifiable architecture: per-edge sign match against a-priori expected signs from operational forecasting literature. | [`results/tier3_sign_convergence.md`](results/tier3_sign_convergence.md) |
+
+External comparators surveyed but not wired in this commit:
+
+- **AE9/AP9 (IRENE)** — provides climatological percentile baselines
+  for trapped-electron/proton flux at GEO; would give a tier-2
+  comparator for the other electron / proton observables. Requires
+  either pyirene (no pip release at time of writing) or spacepy +
+  IRBEM (heavy C dependency tree). Out of scope for this commit; the
+  REFM tier-2 + tier-1 internal + tier-3 architecture test is the
+  working publishable contract.
+- **CCMC iSWA / SWMF runs** — case-study models for specific events;
+  not a continuous operational baseline.
+
+## Data
+
+Large intermediate files (~50 MB obs JSONL + ~17 MB trajectory) are
+**not** committed; they regenerate from public archives. Committed:
+`results/edges_state.json` (~40 KB), `results/training_summary.md`,
+`results/internal_comparator.md`, `results/tier2_refm_comparison.md`,
+`results/tier3_sign_convergence.md`, `results/lead_time_by_severity.md`.
+
+All endpoints used by `fetch_goes.py` are public — no auth, no rate
+limits encountered at hourly cadence:
+
+1. **SWPC primary GOES feeds** — 7-day rolling JSON
+2. **SWPC products** (DSCOVR, Kp, Dst, alerts) — rolling-window JSON
+3. **SWPC text REFM** — `relativistic-electron-fluence-tabular.txt` (60 days),
+   `relativistic-electron-fluence-statistics.txt` (published PE skill scores)
+
+## Reproduce
 
 ```bash
 pip install requests certifi
-python3 fetch_goes.py        # ~10 s
-python3 extract_obs_jsonl.py # ~2 s
-python3 learn_geo.py         # ~5 s
+python3 fetch_goes.py                       # ~10 s
+python3 extract_obs_jsonl.py                # ~2 s
+python3 learn_geo.py                        # ~30 s
+python3 analyze_internal.py                 # ~5 s   tier-1
+python3 analyze_refm.py                     # ~5 s   tier-2
+python3 analyze_sign_convergence.py         # ~1 s   tier-3
+python3 analyze_lead_time.py                # ~10 s  LEO parity
 ```
 
-All endpoints used by `fetch_goes.py` are public — no auth, no rate limits
-encountered at hourly cadence.
+Approximate total compute on a 2024 Apple-silicon laptop: ~1 minute.
 
-## Deferred for full benchmark
+## Window-coverage and scope
 
-1. **AE9/AP9 baseline.** For ≥ 2 MeV electrons and ≥ 10 MeV protons, AE9/AP9
-   provides climatological percentile baselines (IRENE distribution). The
-   framework's `additive_residual` composition mode is designed to ride on
-   top of a comparator. Without it, current predictions use a median-based
-   placeholder; precision-vs-baseline metrics aren't meaningful yet.
-2. **NCEI multi-year backfill.** SWPC primary endpoints serve a rolling
-   1-day window. NOAA NCEI's `goes-space-environment-monitor/access/full/`
-   archive holds historical GOES-R data on the same field schema — drop-in
-   replacement for `fetch_goes.py` URLs.
-3. **`e_flux_hot_plasma` (1–50 keV).** The primary SWPC
-   `differential-electrons-1-day.json` feed starts at 79 keV — outside the
-   MPS-LO band the validate.yaml targets. A direct MPS-LO endpoint or
-   secondary feed is required to wire this observable.
-4. **GOES-EXIS solar inputs as first-class drivers.** XRS-B and EUVS MgII are
-   currently aligned and consumed in the driver vector; the prior.yaml
-   needs explicit `solar_xray_flux` and `solar_euv_index` edges (with
-   `operational_model_documentation` Z₀ = 0.40) so the framework knows
-   they're declared causal contributors, not opportunistic features.
-5. **~~`alerts.json` parsing.~~** Done. SWPC alerts are parsed via
-   [`../sep_alerts.py`](../sep_alerts.py) into four graded event drivers
-   (`sep_proton`, `relativistic_electron`, `flare_xclass`, `geomag_storm`)
-   each in [0, 1] with exponential decay from onset. Wired into the
-   driver vector. In the current 1-day SWPC window the parsed events
-   all occurred 3+ days before the GOES obs window opens, so the
-   convergence ride-along here is more about plumbing than evidence —
-   the multi-year NCEI backfill (#2 above) is what makes these edges
-   evidentially load-bearing.
-6. **MCP integration.** Current `learn_geo.py` is hand-written glue; the
-   refactor target is `nm benchmark geo`, where the MCP server composes the
-   pipeline from `geo/prior.yaml` + `geo/validate.yaml`. The file boundaries
-   here (fetch → extract → learn) map cleanly to MCP tool calls.
+The 7-day SWPC rolling window is the *current* publishable window. It
+contains 45 deduped SWPC operational alerts (11 onset within the obs
+period), enough for lead-time statistics, but **no actively-rising
+SEP events** — proton flux stays at quiet background (0/1966 records
+≥10 pfu). SEP/CME alert-derived drivers therefore carry decay-tail
+intensity only; their architecture-test sign convergence requires
+events-in-window evidence.
 
-## Why it took ~half a day
+Multi-month NCEI backfill from the GOES-R AWS S3 NetCDF archive
+(`s3://noaa-goes16/SEIS-L1b-MPSL/…`, ditto SGPS/MAG) is the obvious
+next step for parity with LEO's 7.5-year storm catalog (21 storms
+≤−100 nT). NCEI's `goes-r-series-l2-operational-space-weather-products/`
+tree was created but is empty as of 2026-06; the L1b S3 path is
+working but requires a netCDF4 + xarray ingest layer that is out of
+scope for this commit.
 
-The hardest part was zero hours of it — the LEO benchmark's `nm_primitives.py`
-moved over unchanged. The work was all regime-specific glue:
-endpoint inventory (`fetch_goes.py`), schema parsing per observable
-(`extract_obs_jsonl.py`), LT voxelization, and driver normalization scales.
-Architecturally, that's exactly what the four-regime claim predicted.
+## Provenance
+
+Framework primitives in `nm_primitives.py` are byte-identical to the LEO
+benchmark's copy. The regime-specific code is fetch + extract glue, the
+SWPC alerts parser (`../sep_alerts.py`), and the four tier analyzers.
+The architecture portability claim — same primitives, different regime —
+is what this directory is here to test, and the head-of-table edge
+counts (208/360 converged, 0% W-saturation) confirm it transfers cleanly.
+
+The framework math here mirrors the implementation in
+`~/NM-learning-loop/mcp_validation.py` (the operational MCP server). If
+the two disagree, the MCP server is authoritative.

@@ -28,6 +28,10 @@ from nm_primitives import apply_learning_feedback_in_memory
 OBS_JSONL = Path(__file__).parent / "obs.jsonl"
 EDGES_OUT = Path(__file__).parent / "results" / "edges_state.json"
 SUMMARY_OUT = Path(__file__).parent / "results" / "training_summary.md"
+# Per-step prediction trajectory (used by tier-1/tier-2 analyses).
+PREDS_OUT = Path(__file__).parent / "results" / "preds.jsonl"
+# Per-edge Z evolution snapshots (used by analyze_lead_time-style code).
+TRAJ_OUT = Path(__file__).parent / "results" / "trajectory.jsonl"
 
 # z-score ε rescale (matches the LEO pipeline override of MCP defaults)
 W_STEP_ZSCORE = 0.02
@@ -49,7 +53,7 @@ DRIVERS = ["sw_speed", "sw_density", "imf_bz", "imf_bt", "xrs_long",
            "sep_proton", "relativistic_electron", "flare_xclass", "geomag_storm"]
 VOXELS = ["lt_0_4", "lt_4_8", "lt_8_12", "lt_12_16", "lt_16_20", "lt_20_24"]
 OBSERVABLES = ["e_flux_gt_2mev", "p_flux_gt_10mev", "p_flux_gt_50mev",
-               "b_field_magnitude"]
+               "b_field_magnitude", "e_flux_warm_plasma"]
 
 # Per-observable prediction composition. "multiplicative" suits flux observables
 # whose driver-driven range spans factors (storm enhancements 10×–10000×).
@@ -61,6 +65,7 @@ PREDICTION_FORM = {
     "p_flux_gt_10mev":  "multiplicative",
     "p_flux_gt_50mev":  "multiplicative",
     "b_field_magnitude": "additive_residual",
+    "e_flux_warm_plasma": "multiplicative",
 }
 
 # Driver normalization (target |d|~1 in typical conditions; rough physical scales).
@@ -106,16 +111,29 @@ def main():
     obs.sort(key=lambda r: r["t"])
     print(f"  {len(obs)} records")
 
-    # Per-(voxel, observable) baseline (skeleton: arithmetic mean) and residual std
+    # Per-(voxel, observable) baseline (median) and residual std.
+    # For flux observables (multiplicative composition), the std is computed
+    # in log10 space because flux distributions are heavy-tailed and the
+    # multiplicative-coupling residual ε = (p − o) / σ is meaningful only when
+    # σ is set on a scale where σ ≈ typical (p − o). For B-field (additive),
+    # std stays in linear space.
     bucket = defaultdict(list)
     for r in obs:
         bucket[(r["v"], r["obs"])].append(r["o"])
-    baseline = {k: statistics.median(vs) for k, vs in bucket.items()}
-    voxel_std = {k: max(statistics.stdev(vs), 1e-15) if len(vs) > 1 else 1.0
-                 for k, vs in bucket.items()}
+    baseline = {}
+    voxel_std = {}
+    for (v, o), vs in bucket.items():
+        if PREDICTION_FORM[o] == "additive_residual":
+            baseline[(v, o)] = statistics.median(vs)
+            voxel_std[(v, o)] = max(statistics.stdev(vs), 1e-15) if len(vs) > 1 else 1.0
+        else:
+            # log10 baseline + log10 residual std; flux observables span OOM
+            logs = [math.log10(max(x, 1e-12)) for x in vs]
+            baseline[(v, o)] = 10 ** statistics.median(logs)
+            voxel_std[(v, o)] = max(statistics.stdev(logs), 1e-3) if len(logs) > 1 else 1.0
     print(f"  {len(baseline)} (voxel, observable) prediction buckets")
 
-    # Initialize 8 × 6 × 4 = 192 edges, all at the default prior
+    # Initialize 12 × 6 × 5 = 360 edges, all at the default prior
     edges = {}
     for d in DRIVERS:
         for v in VOXELS:
@@ -123,10 +141,21 @@ def main():
                 edges[edge_key(d, v, o)] = init_edge()
     print(f"  {len(edges)} edges initialized at Z={0.30}, W=0.0")
 
+    # ε is dimensionless across observables:
+    #   - additive_residual:  ε = (p − o) / σ_linear
+    #   - multiplicative:     ε = (log10 p − log10 o) / σ_log10
+    # This lets us reuse the same Z-tolerance constants across observable types.
+
+    preds_f = open(PREDS_OUT, "w")
+    traj_f = open(TRAJ_OUT, "w")
+    # Snapshot edge Z to trajectory every N records (keep file small).
+    # At 200/record stride and ~18K obs, file is ~4MB.
+    TRAJ_EVERY = 200
+
     # Streaming training pass
     n_updates = 0
     n_skipped_inactive = 0
-    for r in obs:
+    for idx, r in enumerate(obs):
         v, o = r["v"], r["obs"]
         bl = baseline.get((v, o))
         std = voxel_std.get((v, o))
@@ -143,9 +172,29 @@ def main():
             adjust += d_norm[name] * edges[edge_key(name, v, o)]["weight"]
         if PREDICTION_FORM[o] == "additive_residual":
             p = bl + adjust * std
+            eps_joint = (p - r["o"]) / std
+            # Prior-W (W=0) baseline prediction = bl (no driver coupling)
+            p_baseline = bl
         else:
-            p = bl * (1.0 + adjust)
-        eps_joint = (p - r["o"]) / std
+            # Log-space multiplicative composition; bounded coupling per
+            # OOM scale so 8+ active drivers don't accumulate to ±∞ in linear
+            # space. p = bl * 10^(adjust * std_log).
+            log_adjust = adjust * std  # adjust is unitless, std is in log10 units
+            # Clamp log_adjust to ±3 OOM (factor 1000) to prevent runaway during
+            # transient storm onsets — physical fluxes don't move 5+ OOM in
+            # one step, and this preserves Z-update sign without W-saturation.
+            if log_adjust > 3.0: log_adjust = 3.0
+            if log_adjust < -3.0: log_adjust = -3.0
+            p = bl * (10 ** log_adjust)
+            # ε in log10 space
+            eps_joint = (math.log10(max(p, 1e-12)) - math.log10(max(r["o"], 1e-12))) / std
+            p_baseline = bl
+
+        preds_f.write(json.dumps({
+            "t": r["t"], "v": v, "obs": o,
+            "o": r["o"], "p": p, "p_baseline": p_baseline,
+            "eps": eps_joint,
+        }) + "\n")
 
         for name in DRIVERS:
             if abs(d_norm[name]) < ACTIVITY_THRESH.get(name, ACTIVITY_THRESH_DEFAULT):
@@ -161,6 +210,25 @@ def main():
             )
             edges[k] = updated
             n_updates += 1
+
+        if idx % TRAJ_EVERY == 0:
+            # Snapshot ALL edges' Z/W at this timestamp (kept small via stride).
+            for k, e in edges.items():
+                traj_f.write(json.dumps({
+                    "t": r["t"], "src": k.split("|")[0], "v": k.split("|")[1],
+                    "obs": k.split("|")[2],
+                    "Z": e["certainty"], "W": e["weight"],
+                }) + "\n")
+
+    # Final trajectory snapshot
+    for k, e in edges.items():
+        traj_f.write(json.dumps({
+            "t": obs[-1]["t"], "src": k.split("|")[0], "v": k.split("|")[1],
+            "obs": k.split("|")[2],
+            "Z": e["certainty"], "W": e["weight"],
+        }) + "\n")
+    preds_f.close()
+    traj_f.close()
 
     print(f"  {n_updates:,} edge updates applied, {n_skipped_inactive:,} skipped (driver inactive)")
 
@@ -180,10 +248,10 @@ def main():
         by_obs[obs_name].append(e["Z"])
 
     lines = [
-        "# GEO skeleton — training summary",
+        "# GEO benchmark — training summary",
         "",
         f"Generated {datetime.now(timezone.utc).isoformat()}",
-        f"Window: {obs[0]['t']} → {obs[-1]['t']}  (skeleton, 1-day SWPC primary feed)",
+        f"Window: {obs[0]['t']} → {obs[-1]['t']}  (7-day SWPC primary feed, GOES-19)",
         f"Voxels: {len(VOXELS)} LT bins  ·  Observables: {len(OBSERVABLES)}  ·  Drivers: {len(DRIVERS)}",
         f"Edges initialized: {len(edges)}  ·  Updates applied: {n_updates:,}",
         "",
@@ -206,25 +274,27 @@ def main():
             lines.append(f"| {o} | {len(by_obs[o])} | {statistics.median(by_obs[o]):.3f} |")
     lines += [
         "",
-        "## What this validates",
+        "## Next-stage analyses",
         "",
-        "- The framework primitives in `nm_primitives.py` accept GEO observations and "
-        "produce non-trivial W and Z updates with no code changes — the LEO architecture "
-        "transfers as designed.",
-        "- All 6 LT voxels see observations within the 24h window (no coverage gaps).",
-        "- Driver alignment from SWPC JSON works end-to-end: DSCOVR plasma/mag, GOES-XRS, "
-        "GOES-EUVS (Mg II), Kp, and Dst all align by nearest-time lookup.",
+        "- **Tier-1 internal comparator:** `python3 analyze_internal.py` → "
+        "  `results/internal_comparator.md`",
+        "- **Tier-2 external comparator (REFM):** `python3 analyze_refm.py` → "
+        "  `results/tier2_refm_comparison.md`",
+        "- **Tier-3 falsifiable architecture test:** `python3 analyze_sign_convergence.py` "
+        "  → `results/tier3_sign_convergence.md`",
+        "- **Lead-time analysis (LEO parity):** `python3 analyze_lead_time.py` → "
+        "  `results/lead_time_by_severity.md`",
         "",
-        "## Skeleton boundary (deferred)",
+        "## Window-coverage caveat",
         "",
-        "- **Baseline = median.** Production needs AE9/AP9 climatology (additive-residual "
-        "  composition) and/or rolling quiet-time baseline gated by Dst > −30.",
-        "- **Window = 1 day.** Production needs NCEI multi-year backfill for storm coverage; "
-        "  Z convergence requires many more observations per edge.",
-        "- **`e_flux_hot_plasma` missing.** Primary SWPC differential-electrons feed starts "
-        "  at 79 keV; the 1–50 keV MPS-LO observable needs a different endpoint.",
-        "- **Anomaly-flag analysis (precision/recall vs a comparator) requires a baseline.** "
-        "  Wire AE9/AP9 next.",
+        f"This summary covers a 7-day SWPC rolling window. The 5/5 observables × "
+        f"{len(VOXELS)} voxels × {len(DRIVERS)} drivers = {len(edges)} edges saturate "
+        "Z=1 for the drivers that have evidence in window (high-cadence DSCOVR / "
+        "GOES-XRS / Dst); the SEP/CME alert-derived drivers carry decay-tail "
+        "intensity only because no actively-rising SEP events occurred in the obs "
+        "window (see `tier3_sign_convergence.md` for the falsifiable test result and "
+        "scope notes). Multi-month NCEI backfill is the prerequisite for events-"
+        "in-window evidential convergence of the SEP/CME edges.",
     ]
     SUMMARY_OUT.write_text("\n".join(lines) + "\n")
     print(f"\nwrote {EDGES_OUT.name}")

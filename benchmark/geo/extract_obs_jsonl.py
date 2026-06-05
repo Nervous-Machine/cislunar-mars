@@ -11,9 +11,13 @@ Observables (target observables in geo/prior.yaml):
     p_flux_gt_10mev     ← integral_protons (>=10 MeV channel)
     p_flux_gt_50mev     ← integral_protons (>=50 MeV channel)
     b_field_magnitude   ← magnetometers (total)
-    e_flux_hot_plasma   ← MPS-LO (1-50 keV)   [SKELETON: primary SWPC
-                          differential_electrons starts at 79 keV; flagged
-                          as TODO until secondary / MPS-LO direct feed is wired]
+    e_flux_warm_plasma  ← differential_electrons (79 keV channel) — proxy
+                          for the MPS-LO 1-50 keV target in prior.yaml.
+                          SWPC primary differential feed starts at 79 keV;
+                          the true 1-50 keV band requires L1b MPS-LO ingest
+                          which is deferred (see README "Hot-plasma gap").
+                          79 keV is the closest available proxy and still
+                          measures substorm-injection signature.
 
 Drivers (aligned by nearest-time lookup):
     sw_speed, sw_density (DSCOVR plasma)
@@ -169,6 +173,25 @@ def extract_mag(drivers, sep_timeline):
     return out
 
 
+def extract_warm_plasma(drivers, sep_timeline):
+    """79 keV differential electron channel as a proxy for the 1-50 keV
+    MPS-LO band declared in prior.yaml. 79 keV is the lowest channel in
+    SWPC's primary differential-electrons feed."""
+    rows = load("differential_electrons")
+    out = []
+    for r in rows:
+        if r.get("energy") != "79 keV": continue
+        flux = r.get("flux")
+        if flux is None or flux <= 0: continue
+        t = parse_iso(r["time_tag"])
+        out.append({
+            "t": r["time_tag"], "v": lt_voxel(t),
+            "obs": "e_flux_warm_plasma", "o": float(flux),
+            "satellite": r["satellite"], "d": driver_state(drivers, t, sep_timeline),
+        })
+    return out
+
+
 def main():
     print("building driver series from raw/…")
     drivers = build_driver_series()
@@ -186,6 +209,7 @@ def main():
     obs += extract_protons(drivers, ">=10 MeV", "p_flux_gt_10mev", sep_timeline)
     obs += extract_protons(drivers, ">=50 MeV", "p_flux_gt_50mev", sep_timeline)
     obs += extract_mag(drivers, sep_timeline)
+    obs += extract_warm_plasma(drivers, sep_timeline)
     print(f"  {len(obs)} total records")
 
     by_obs = {}
